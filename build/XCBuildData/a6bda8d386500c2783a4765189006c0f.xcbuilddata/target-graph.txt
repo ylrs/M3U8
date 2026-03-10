@@ -1,0 +1,2 @@
+Target dependency graph (1 target)
+Target 'M3U8' in project 'M3U8' (no dependencies)

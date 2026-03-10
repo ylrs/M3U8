@@ -1,0 +1,17 @@
+{
+  "manifest_version": 2,
+  "name": "M3U8 Converter",
+  "version": "1.0.0",
+  "description": "Detect m3u8 videos and send them to the M3U8 Converter app.",
+  "permissions": [
+    "activeTab"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

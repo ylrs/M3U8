@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcodebuild -target M3U8 -configuration Debug -sdk iphonesimulator clean build 2>&1 | grep -i error | head -20)",
+      "Bash(xcodebuild -target M3U8 -configuration Debug -sdk iphonesimulator clean build 2>&1 | tail -20)",
+      "Bash(pod install 2>&1 | tail -20)",
+      "Bash(pod --version)",
+      "Bash(gem install cocoapods --user-install 2>&1 | tail -10)",
+      "WebFetch(domain:sf1-cdn-tos.huoshanstatic.com)",
+      "Bash(xcodebuild -target M3U8 -configuration Debug -sdk iphonesimulator build 2>&1 | tail -5)",
+      "Bash(gem list xcodeproj)",
+      "Bash(gem update xcodeproj --user-install)",
+      "Bash(cd M3U8.xcodeproj && cp project.pbxproj project.pbxproj.backup)",
+      "Bash(pwd && ls -la *.xcodeproj/)",
+      "Bash(python3 fix_pbxproj.py)",
+      "Bash(pod install 2>&1 | tail -100)",
+      "Bash(python3 fix_xcode16.py)",
+      "Bash(pod install 2>&1)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(pod install --verbose 2>&1 | grep -A5 -B5 \"ffmpeg\")",
+      "Bash(ls -la ffmpeg-kit-ios-min-gpl/*.xcframework)",
+      "Bash(chmod +x 验证FFmpeg配置.sh && ./验证FFmpeg配置.sh)",
+      "WebFetch(domain:demo.unified-streaming.com)",
+      "Bash(xcodebuild -target M3U8 -configuration Debug -sdk iphonesimulator build 2>&1 | tail -10)",
+      "Bash(xcodebuild -target M3U8 -configuration Debug -sdk iphonesimulator build 2>&1 | grep -A5 \"error:\")",
+      "Bash(xcodebuild -project M3U8.xcodeproj -scheme M3U8 -configuration Debug clean build -quiet 2>&1 | tail -20)",
+      "Bash(xcodebuild -project M3U8.xcodeproj -scheme M3U8 -configuration Debug -sdk iphonesimulator clean build CODE_SIGNING_ALLOWED=NO 2>&1 | grep -i \"error:\" | head -10)",
+      "Bash(xcodebuild -project M3U8.xcodeproj -target M3U8 -showBuildSettings 2>/dev/null | grep -E \"FRAMEWORK_SEARCH_PATHS|OTHER_LDFLAGS|HEADER_SEARCH_PATHS\" | head -10)",
+      "Bash(chmod +x /Users/YLRS/Home/M3U8/集成FFmpeg框架.sh && /Users/YLRS/Home/M3U8/集成FFmpeg框架.sh)",
+      "Bash(chmod +x /Users/YLRS/Home/M3U8/自动添加FFmpeg框架.py && python3 /Users/YLRS/Home/M3U8/自动添加FFmpeg框架.py)",
+      "Bash(chmod +x /Users/YLRS/Home/M3U8/完整配置FFmpeg.py && python3 /Users/YLRS/Home/M3U8/完整配置FFmpeg.py)",
+      "Bash(plutil -lint /Users/YLRS/Home/M3U8/M3U8.xcodeproj/project.pbxproj 2>&1 || echo \"project.pbxproj不是plist格式（这是正常的）\")",
+      "Bash(xcodebuild -project M3U8.xcodeproj -scheme M3U8 -sdk iphonesimulator -configuration Debug build CODE_SIGNING_ALLOWED=NO 2>&1 | tail -30)",
+      "Bash(otool -L /Users/YLRS/Library/Developer/Xcode/DerivedData2/M3U8-fmgtnnzuckrhcrgnqjxtmbeztuio/Build/Products/Debug-iphonesimulator/M3U8.app/M3U8 | grep -i ffmpeg)",
+      "Bash(nm /Users/YLRS/Library/Developer/Xcode/DerivedData2/M3U8-fmgtnnzuckrhcrgnqjxtmbeztuio/Build/Products/Debug-iphonesimulator/M3U8.app/M3U8 | grep -i \"FFmpegKit\" | head -5)",
+      "Bash(ls -d /Users/YLRS/Home/M3U8/ffmpeg-kit-ios-min-gpl/*.xcframework)"
+    ]
+  }
+}
