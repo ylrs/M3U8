@@ -94,6 +94,24 @@ static NSString * const kConvertedPath = @"Converted";
     }
 }
 
+- (BOOL)clearSourceCacheWithError:(NSError *__autoreleasing  _Nullable *)error {
+    NSURL *cacheDir = [self sourceCacheDirectory];
+    NSArray<NSURL *> *items = [self.fileManager contentsOfDirectoryAtURL:cacheDir
+                                              includingPropertiesForKeys:nil
+                                                                 options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                   error:error];
+    if (!items) {
+        return NO;
+    }
+    BOOL success = YES;
+    for (NSURL *item in items) {
+        if (![self.fileManager removeItemAtURL:item error:error]) {
+            success = NO;
+        }
+    }
+    return success;
+}
+
 - (long long)fileSizeAtURL:(NSURL *)fileURL {
     NSDictionary *attributes = [self.fileManager attributesOfItemAtPath:fileURL.path error:nil];
     return [attributes[NSFileSize] longLongValue];

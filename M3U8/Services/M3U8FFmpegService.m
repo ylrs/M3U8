@@ -162,7 +162,14 @@
             [self.activeSessions removeObjectForKey:task.taskId];
         }
                                              withLogCallback:^(Log *log) {
-            NSLog(@"[FFmpeg Log] %@", [log getMessage]);
+            NSString *message = [log getMessage] ?: @"";
+            NSString *lower = message.lowercaseString;
+            if ([lower containsString:@"error"] ||
+                [lower containsString:@"failed"] ||
+                [lower containsString:@"invalid"] ||
+                [lower containsString:@"unable to open"]) {
+                NSLog(@"[FFmpeg Log] %@", message);
+            }
         }
                                       withStatisticsCallback:^(Statistics *statistics) {
             // 计算进度
@@ -239,6 +246,7 @@
     // -y: 覆盖输出文件
 
     NSString *command = [NSString stringWithFormat:
+        @"-protocol_whitelist file,crypto,concat,subfile "
         @"-allowed_extensions ALL "
         @"-i \"%@\" "
         @"-c:v h264_videotoolbox -b:v 3000k "

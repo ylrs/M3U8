@@ -37,6 +37,7 @@
     [self setupUI];
     [self setupNavigationBar];
     [self registerNotifications];
+    [self loadTasksFromDisk];
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -94,21 +95,41 @@
 }
 
 - (void)clearCompleted {
-    NSMutableArray *completedTasks = [NSMutableArray array];
-    for (M3U8ConversionTask *task in self.tasks) {
-        if ([task isFinished]) {
-            [completedTasks addObject:task];
-        }
-    }
+    UIAlertController *confirm = [UIAlertController alertControllerWithTitle:@"清理缓存"
+                                                                     message:@"将删除所有缓存文件并移除已完成任务，是否继续？"
+                                                              preferredStyle:UIAlertControllerStyleAlert];
+    [confirm addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+    [confirm addAction:[UIAlertAction actionWithTitle:@"确认删除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        NSError *cacheError = nil;
+        [[M3U8FileManagerService sharedService] clearSourceCacheWithError:&cacheError];
 
-    [self.tasks removeObjectsInArray:completedTasks];
-    [self.tableView reloadData];
+        NSMutableArray *completedTasks = [NSMutableArray array];
+        for (M3U8ConversionTask *task in self.tasks) {
+            if ([task isFinished]) {
+                [completedTasks addObject:task];
+            }
+        }
+
+        [self.tasks removeObjectsInArray:completedTasks];
+        [self.tableView reloadData];
+        [self saveTasksToDisk];
+
+        if (cacheError) {
+            UIAlertController *errorAlert = [UIAlertController alertControllerWithTitle:@"清理失败"
+                                                                                message:cacheError.localizedDescription ?: @"无法清理缓存"
+                                                                         preferredStyle:UIAlertControllerStyleAlert];
+            [errorAlert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+            [self presentViewController:errorAlert animated:YES completion:nil];
+        }
+    }]];
+    [self presentViewController:confirm animated:YES completion:nil];
 }
 
 - (void)startConversionForTask:(M3U8ConversionTask *)task {
     NSLog(@"[转换列表] 开始转换任务: %@", task.taskId);
     task.status = M3U8ConversionStatusConverting;
     [self updateTaskInTable:task];
+    [self saveTasksToDisk];
 
     __weak typeof(self) weakSelf = self;
     [self.conversionService startConversionForTask:task
@@ -136,6 +157,7 @@
                     t.errorMessage = error.localizedDescription;
                 }
                 [weakSelf updateTaskInTable:t];
+                [weakSelf saveTasksToDisk];
                 break;
             }
         }
@@ -146,6 +168,7 @@
     [self.conversionService cancelConversionForTaskId:task.taskId];
     task.status = M3U8ConversionStatusCancelled;
     [self updateTaskInTable:task];
+    [self saveTasksToDisk];
 }
 
 - (void)retryTask:(M3U8ConversionTask *)task {
@@ -153,6 +176,7 @@
     task.progress = 0;
     task.errorMessage = nil;
     [self updateTaskInTable:task];
+    [self saveTasksToDisk];
     [self startConversionForTask:task];
 }
 
@@ -169,6 +193,7 @@
             [self.tableView reloadData];
             NSLog(@"[转换列表] TableView 已刷新");
 
+            [self saveTasksToDisk];
             // 自动开始转换
             [self startConversionForTask:task];
         });
@@ -292,6 +317,7 @@
     [alert addAction:[UIAlertAction actionWithTitle:@"删除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
         [self.tasks removeObject:task];
         [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
+        [self saveTasksToDisk];
     }]];
 
     [alert addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
@@ -366,6 +392,61 @@ didFailConversionForTaskId:(NSString *)taskId
         popover.sourceRect = self.view.bounds;
     }
     [self presentViewController:activity animated:YES completion:nil];
+}
+
+#pragma mark - Persistence
+
+- (NSURL *)tasksArchiveURL {
+    NSURL *documentsURL = [[[NSFileManager defaultManager] URLsForDirectory:NSDocumentDirectory
+                                                                  inDomains:NSUserDomainMask] firstObject];
+    return [documentsURL URLByAppendingPathComponent:@"conversion_tasks.dat"];
+}
+
+- (void)saveTasksToDisk {
+    NSError *archiveError = nil;
+    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:self.tasks
+                                         requiringSecureCoding:YES
+                                                         error:&archiveError];
+    if (!data) {
+        NSLog(@"[转换列表] 保存任务失败: %@", archiveError);
+        return;
+    }
+    NSError *writeError = nil;
+    BOOL ok = [data writeToURL:[self tasksArchiveURL] options:NSDataWritingAtomic error:&writeError];
+    if (!ok) {
+        NSLog(@"[转换列表] 写入任务文件失败: %@", writeError);
+    }
+}
+
+- (void)loadTasksFromDisk {
+    NSURL *archiveURL = [self tasksArchiveURL];
+    NSData *data = [NSData dataWithContentsOfURL:archiveURL];
+    if (data.length == 0) {
+        return;
+    }
+    NSError *error = nil;
+    NSSet<Class> *allowed = [NSSet setWithObjects:
+                             [NSArray class],
+                             [M3U8ConversionTask class],
+                             [NSURL class],
+                             [NSDate class],
+                             [NSString class], nil];
+    NSArray<M3U8ConversionTask *> *saved = [NSKeyedUnarchiver unarchivedObjectOfClasses:allowed
+                                                                               fromData:data
+                                                                                  error:&error];
+    if (!saved) {
+        NSLog(@"[转换列表] 读取任务失败: %@", error);
+        return;
+    }
+    self.tasks = [saved mutableCopy];
+    for (M3U8ConversionTask *task in self.tasks) {
+        if ([task isActive]) {
+            task.status = M3U8ConversionStatusFailed;
+            task.progress = 0;
+            task.errorMessage = @"应用已重启，任务中断，可点击重试。";
+        }
+    }
+    [self.tableView reloadData];
 }
 
 @end

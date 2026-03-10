@@ -39,6 +39,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)cleanExpiredCacheWithDays:(NSInteger)days;
 
 /**
+ * 清空源缓存目录
+ */
+- (BOOL)clearSourceCacheWithError:(NSError **)error;
+
+/**
  * 获取文件大小
  */
 - (long long)fileSizeAtURL:(NSURL *)fileURL;

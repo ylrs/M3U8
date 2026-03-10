@@ -622,18 +622,6 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         return nil;
     }
 
-    if ([content containsString:@"#EXT-X-KEY"]) {
-        if (error) {
-            *error = [NSError errorWithDomain:@"M3U8ConverterError"
-                                         code:-1022
-                                     userInfo:@{
-                NSLocalizedDescriptionKey: @"检测到加密HLS",
-                NSLocalizedFailureReasonErrorKey: @"加密内容无法离线转码。"
-            }];
-        }
-        return nil;
-    }
-
     NSArray<NSString *> *lines = [content componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
     NSMutableArray<NSString *> *outputLines = [NSMutableArray arrayWithCapacity:lines.count];
     NSMutableArray<NSString *> *segmentLines = [NSMutableArray array];
@@ -642,7 +630,6 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
             [segmentLines addObject:line];
         }
     }
-
     BOOL needsRemap = NO;
     for (NSString *segment in segmentLines) {
         NSURL *segURL = [NSURL URLWithString:segment relativeToURL:playlistURL];
@@ -671,6 +658,19 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         }
     }
 
+    NSURL *stagingDir = nil;
+    if (needsRemap && candidateFiles.count > 0) {
+        M3U8FileManagerService *fileManager = [M3U8FileManagerService sharedService];
+        NSURL *cacheDir = [fileManager sourceCacheDirectory];
+        NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
+        NSString *dirName = [NSString stringWithFormat:@"ffmpeg_staging_%@_%ld", task.taskId, (long)timestamp];
+        stagingDir = [cacheDir URLByAppendingPathComponent:dirName];
+        [[NSFileManager defaultManager] createDirectoryAtURL:stagingDir
+                                 withIntermediateDirectories:YES
+                                                  attributes:nil
+                                                       error:nil];
+    }
+
     NSUInteger segmentIndex = 0;
     for (NSString *line in lines) {
         if ([line hasPrefix:@"#EXT-X-MAP"]) {
@@ -682,10 +682,32 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
             continue;
         }
 
+        if ([line hasPrefix:@"#EXT-X-KEY"]) {
+            NSError *keyError = nil;
+            NSString *rewritten = [self rewriteKeyLine:line
+                                           playlistURL:playlistURL
+                                            packageURL:packageURL
+                                           fileNameMap:fileNameMap
+                                                 error:&keyError];
+            if (!rewritten) {
+                if (error) {
+                    *error = keyError;
+                }
+                return nil;
+            }
+            [outputLines addObject:rewritten];
+            continue;
+        }
+
         if (line.length > 0 && ![line hasPrefix:@"#"]) {
             NSURL *segURL = nil;
-            if (needsRemap) {
+            if (needsRemap && candidateFiles.count > 0 && segmentIndex < candidateFiles.count) {
+                segURL = candidateFiles[segmentIndex];
+            } else {
                 NSString *name = [NSURL URLWithString:line].lastPathComponent;
+                if (name.length > 0) {
+                    name = [name stringByRemovingPercentEncoding] ?: name;
+                }
                 if (name.length > 0 && fileNameMap[name]) {
                     segURL = fileNameMap[name];
                 } else {
@@ -695,16 +717,24 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
                     }
                 }
                 if (!segURL) {
-                    if (segmentIndex < candidateFiles.count) {
-                        segURL = candidateFiles[segmentIndex];
-                    } else {
-                        segURL = [NSURL URLWithString:line relativeToURL:playlistURL];
-                    }
+                    segURL = [NSURL URLWithString:line relativeToURL:playlistURL];
                 }
-            } else {
-                segURL = [NSURL URLWithString:line relativeToURL:playlistURL];
+                BOOL exists = segURL.isFileURL ? [[NSFileManager defaultManager] fileExistsAtPath:segURL.path] : NO;
+                if ((!exists || !segURL.isFileURL) && candidateFiles.count > 0 && segmentIndex < candidateFiles.count) {
+                    segURL = candidateFiles[segmentIndex];
+                }
             }
+
             NSString *path = segURL.path ?: line;
+            if (stagingDir && segURL.isFileURL) {
+                NSString *stagedName = [NSString stringWithFormat:@"seg_%05lu.frag", (unsigned long)segmentIndex];
+                NSURL *stagedURL = [stagingDir URLByAppendingPathComponent:stagedName];
+                if (![[NSFileManager defaultManager] fileExistsAtPath:stagedURL.path]) {
+                    // Use copy to avoid any path/symlink resolution surprises.
+                    [[NSFileManager defaultManager] copyItemAtURL:segURL toURL:stagedURL error:nil];
+                }
+                path = stagedURL.path;
+            }
             NSString *fileURLString = [self fileURLStringForPath:path];
             [outputLines addObject:fileURLString ?: path];
             segmentIndex += 1;
@@ -715,7 +745,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 
     NSString *rewritten = [outputLines componentsJoinedByString:@"\n"];
     M3U8FileManagerService *fileManager = [M3U8FileManagerService sharedService];
-    NSURL *cacheDir = [fileManager sourceCacheDirectory];
+    NSURL *cacheDir = stagingDir ?: [fileManager sourceCacheDirectory];
     NSString *baseName = task.taskId;
     NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
     NSString *fileName = [NSString stringWithFormat:@"%@_ffmpeg_%ld.m3u8", baseName, (long)timestamp];
@@ -833,7 +863,8 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         return mapLine;
     }
 
-    NSURL *mapURL = [NSURL URLWithString:uri relativeToURL:playlistURL];
+    NSString *decodedURI = [uri stringByRemovingPercentEncoding] ?: uri;
+    NSURL *mapURL = [NSURL URLWithString:decodedURI relativeToURL:playlistURL];
     NSURL *resolved = nil;
     if ([[NSFileManager defaultManager] fileExistsAtPath:mapURL.path]) {
         resolved = mapURL;
@@ -841,26 +872,180 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 
     if (!resolved) {
         NSString *fileName = mapURL.lastPathComponent;
+        if (fileName.length > 0) {
+            fileName = [fileName stringByRemovingPercentEncoding] ?: fileName;
+        }
         resolved = fileNameMap[fileName] ?: [self findFileNamed:fileName underDirectory:packageURL];
     }
 
     if (!resolved) {
-        resolved = [self findFileBySuffix:uri underDirectory:packageURL];
+        resolved = [self findFileBySuffix:decodedURI underDirectory:packageURL];
     }
 
     if (!resolved) {
-        resolved = mapURL;
+        resolved = [self findFirstFileWithExtension:@"cmfv" underDirectory:packageURL] ?: mapURL;
     }
 
     NSString *fileURLString = [self fileURLStringForPath:resolved.path ?: uri];
     return [mapLine stringByReplacingOccurrencesOfString:uri withString:fileURLString ?: uri];
 }
 
+- (NSString *)rewriteKeyLine:(NSString *)keyLine
+                 playlistURL:(NSURL *)playlistURL
+                  packageURL:(NSURL *)packageURL
+                 fileNameMap:(NSDictionary<NSString *, NSURL *> *)fileNameMap
+                       error:(NSError **)error {
+    NSString *method = [self attributeValueForKey:@"METHOD" inTagLine:keyLine];
+    if (method.length == 0) {
+        return keyLine;
+    }
+
+    if ([method isEqualToString:@"NONE"]) {
+        return keyLine;
+    }
+
+    if (![method isEqualToString:@"AES-128"]) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"M3U8ConverterError"
+                                         code:-1022
+                                     userInfo:@{
+                NSLocalizedDescriptionKey: @"检测到加密HLS",
+                NSLocalizedFailureReasonErrorKey: @"当前仅支持AES-128离线转码，SAMPLE-AES或DRM内容不支持。"
+            }];
+        }
+        return nil;
+    }
+
+    NSString *uri = [self attributeValueForKey:@"URI" inTagLine:keyLine];
+    if (uri.length == 0) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"M3U8ConverterError"
+                                         code:-1026
+                                     userInfo:@{
+                NSLocalizedDescriptionKey: @"加密HLS缺少密钥URI",
+                NSLocalizedFailureReasonErrorKey: @"请检查播放列表内容或更换链接。"
+            }];
+        }
+        return nil;
+    }
+
+    NSString *decodedURI = [uri stringByRemovingPercentEncoding] ?: uri;
+    NSURL *keyURL = [NSURL URLWithString:decodedURI relativeToURL:playlistURL];
+    NSURL *resolved = nil;
+    if ([[NSFileManager defaultManager] fileExistsAtPath:keyURL.path]) {
+        resolved = keyURL;
+    }
+
+    if (!resolved) {
+        NSString *fileName = keyURL.lastPathComponent;
+        if (fileName.length > 0) {
+            fileName = [fileName stringByRemovingPercentEncoding] ?: fileName;
+        }
+        resolved = fileNameMap[fileName] ?: [self findFileNamed:fileName underDirectory:packageURL];
+    }
+
+    if (!resolved) {
+        resolved = [self findFileBySuffix:decodedURI underDirectory:packageURL];
+    }
+
+    if (!resolved) {
+        NSString *scheme = keyURL.scheme.lowercaseString;
+        if ([scheme isEqualToString:@"https"] || [scheme isEqualToString:@"http"]) {
+            if (![M3U8FFmpegService isHTTPSProtocolAvailable]) {
+                NSURL *cachedKeyURL = [self downloadKeyToLocalCache:keyURL];
+                if (cachedKeyURL) {
+                    NSString *fileURLString = [self fileURLStringForPath:cachedKeyURL.path];
+                    return [keyLine stringByReplacingOccurrencesOfString:uri withString:fileURLString ?: uri];
+                }
+                if (error) {
+                    *error = [NSError errorWithDomain:@"M3U8ConverterError"
+                                                 code:-1027
+                                             userInfo:@{
+                        NSLocalizedDescriptionKey: @"FFmpeg不支持HTTPS密钥",
+                        NSLocalizedFailureReasonErrorKey: @"当前FFmpeg构建未启用HTTPS，且未能下载密钥到本地。"
+                    }];
+                }
+                return nil;
+            }
+        }
+        return keyLine;
+    }
+
+    NSString *fileURLString = [self fileURLStringForPath:resolved.path ?: uri];
+    return [keyLine stringByReplacingOccurrencesOfString:uri withString:fileURLString ?: uri];
+}
+
+- (NSString *)attributeValueForKey:(NSString *)key inTagLine:(NSString *)line {
+    if (key.length == 0 || line.length == 0) {
+        return nil;
+    }
+    NSString *pattern = [NSString stringWithFormat:@"%@=", key];
+    NSRange range = [line rangeOfString:pattern];
+    if (range.location == NSNotFound) {
+        return nil;
+    }
+    NSUInteger start = range.location + range.length;
+    if (start >= line.length) {
+        return nil;
+    }
+    NSString *tail = [line substringFromIndex:start];
+    if ([tail hasPrefix:@"\""]) {
+        NSString *rest = [tail substringFromIndex:1];
+        NSRange endRange = [rest rangeOfString:@"\""];
+        if (endRange.location != NSNotFound) {
+            return [rest substringToIndex:endRange.location];
+        }
+        return nil;
+    }
+    NSRange endRange = [tail rangeOfString:@","];
+    if (endRange.location == NSNotFound) {
+        return tail;
+    }
+    return [tail substringToIndex:endRange.location];
+}
+
+- (NSURL *)downloadKeyToLocalCache:(NSURL *)keyURL {
+    if (!keyURL) {
+        return nil;
+    }
+    NSData *data = [NSData dataWithContentsOfURL:keyURL];
+    if (data.length == 0) {
+        return nil;
+    }
+    M3U8FileManagerService *fileManager = [M3U8FileManagerService sharedService];
+    NSURL *cacheDir = [fileManager sourceCacheDirectory];
+    NSString *fileName = keyURL.lastPathComponent.length > 0 ? keyURL.lastPathComponent : @"key";
+    NSString *baseName = [fileName stringByDeletingPathExtension];
+    NSString *ext = [fileName pathExtension];
+    if (ext.length == 0) {
+        ext = @"key";
+    }
+    NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
+    NSString *uniqueName = [NSString stringWithFormat:@"%@_%ld.%@", baseName, (long)timestamp, ext];
+    NSURL *outURL = [cacheDir URLByAppendingPathComponent:uniqueName];
+    if ([data writeToURL:outURL atomically:YES]) {
+        return outURL;
+    }
+    return nil;
+}
+
 - (NSString *)fileURLStringForPath:(NSString *)path {
     if (path.length == 0) {
         return nil;
     }
-    NSURL *url = [NSURL fileURLWithPath:path];
+    // If path is already in staging, keep it as-is.
+    if ([path containsString:@"/ffmpeg_staging_"]) {
+        NSURL *url = [NSURL fileURLWithPath:path];
+        return url.absoluteString;
+    }
+    NSString *resolved = [path stringByResolvingSymlinksInPath];
+    if ([resolved hasPrefix:@"/private/var/"]) {
+        NSString *alt = [resolved stringByReplacingOccurrencesOfString:@"/private/var/" withString:@"/var/"];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:alt]) {
+            resolved = alt;
+        }
+    }
+    NSURL *url = [NSURL fileURLWithPath:resolved];
     return url.absoluteString;
 }
 
@@ -883,6 +1068,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         return nil;
     }
     NSString *normalized = [suffix stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
+    normalized = [normalized stringByRemovingPercentEncoding] ?: normalized;
     if ([normalized hasPrefix:@"file://"]) {
         NSURL *url = [NSURL URLWithString:normalized];
         normalized = url.path ?: normalized;
@@ -898,6 +1084,24 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     for (NSURL *fileURL in enumerator) {
         NSString *path = fileURL.path;
         if ([path hasSuffix:normalized]) {
+            return fileURL;
+        }
+    }
+    return nil;
+}
+
+- (NSURL *)findFirstFileWithExtension:(NSString *)extension underDirectory:(NSURL *)directoryURL {
+    if (extension.length == 0) {
+        return nil;
+    }
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSDirectoryEnumerator<NSURL *> *enumerator = [fileManager enumeratorAtURL:directoryURL
+                                                   includingPropertiesForKeys:nil
+                                                                      options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                 errorHandler:nil];
+    NSString *targetExt = extension.lowercaseString;
+    for (NSURL *fileURL in enumerator) {
+        if ([fileURL.pathExtension.lowercaseString isEqualToString:targetExt]) {
             return fileURL;
         }
     }
