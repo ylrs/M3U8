@@ -48,6 +48,7 @@ typedef NS_ENUM(NSInteger, M3U8InputSourceType) {
 
 - (NSString *)fileName;
 - (NSString *)outputFileName;
+- (NSString *)safeFileBaseName;
 - (NSString *)statusDisplayName;
 - (BOOL)isActive;
 - (BOOL)isFinished;

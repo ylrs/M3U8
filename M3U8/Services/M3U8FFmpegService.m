@@ -123,7 +123,8 @@
         NSLog(@"[FFmpeg服务] 输出URL: %@", outputURL);
 
         // 构建FFmpeg命令
-        NSString *command = [self buildFFmpegCommandForSource:inputURL.absoluteString
+        NSString *sourceArg = inputURL.isFileURL ? inputURL.path : inputURL.absoluteString;
+        NSString *command = [self buildFFmpegCommandForSource:sourceArg
                                                        output:outputURL.path
                                                       quality:quality];
 

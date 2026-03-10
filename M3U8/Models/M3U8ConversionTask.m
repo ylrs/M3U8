@@ -41,6 +41,14 @@
     return [NSString stringWithFormat:@"%@.mp4", baseName];
 }
 
+- (NSString *)safeFileBaseName {
+    if (self.customTitle.length > 0) {
+        return [self safeFileBaseNameFromTitle:self.customTitle];
+    }
+    NSString *baseName = [[self fileName] stringByDeletingPathExtension];
+    return [self safeFileBaseNameFromTitle:baseName];
+}
+
 - (NSString *)statusDisplayName {
     switch (self.status) {
         case M3U8ConversionStatusPending:

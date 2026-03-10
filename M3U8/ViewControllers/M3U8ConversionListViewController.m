@@ -280,6 +280,9 @@
         [alert addAction:[UIAlertAction actionWithTitle:@"查看视频" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self playTaskOutput:task];
         }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"分享" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [self shareTaskOutput:task];
+        }]];
     } else if (task.status == M3U8ConversionStatusFailed) {
         [alert addAction:[UIAlertAction actionWithTitle:@"重试" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self retryTask:task];
@@ -343,6 +346,26 @@ didFailConversionForTaskId:(NSString *)taskId
     [self presentViewController:playerVC animated:YES completion:^{
         [player play];
     }];
+}
+
+- (void)shareTaskOutput:(M3U8ConversionTask *)task {
+    NSURL *outputURL = task.outputURL;
+    if (!outputURL || ![[NSFileManager defaultManager] fileExistsAtPath:outputURL.path]) {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"文件不存在"
+                                                                       message:@"未找到已转换的视频文件，请重新转换。"
+                                                                preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+
+    UIActivityViewController *activity = [[UIActivityViewController alloc] initWithActivityItems:@[outputURL] applicationActivities:nil];
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad) {
+        UIPopoverPresentationController *popover = activity.popoverPresentationController;
+        popover.sourceView = self.view;
+        popover.sourceRect = self.view.bounds;
+    }
+    [self presentViewController:activity animated:YES completion:nil];
 }
 
 @end

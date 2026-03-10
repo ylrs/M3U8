@@ -199,6 +199,7 @@
         if (success) {
             NSLog(@"[转换服务] ✓ FFmpeg转换成功");
             dispatch_async(dispatch_get_main_queue(), ^{
+                [self cleanupTempPlaylistIfNeededForTask:task];
                 [self cleanLocalSourceIfNeededForTask:task];
                 completionBlock(taskId, YES, nil);
 
@@ -211,6 +212,7 @@
         } else {
             NSLog(@"[转换服务] ✗ FFmpeg转换失败: %@", error);
             dispatch_async(dispatch_get_main_queue(), ^{
+                [self cleanupTempPlaylistIfNeededForTask:task];
                 [self cleanLocalSourceIfNeededForTask:task];
                 completionBlock(taskId, NO, error);
 
@@ -474,23 +476,27 @@ didFinishDownloadingToURL:(NSURL *)location {
 
     [self copyDownloadPackageIfNeededFromURL:location forTask:task];
     NSURL *packageURL = task.localPackageURL ?: location;
-    NSError *prepareError = nil;
-    NSURL *playlistURL = [self prepareLocalPlaylistForFFmpegFromPackage:packageURL
-                                                                   task:task
-                                                                  error:&prepareError];
-    if (!playlistURL) {
-        completionBlock(taskId, NO, prepareError ?: [NSError errorWithDomain:@"M3U8ConverterError"
-                                                                        code:-1019
-                                                                    userInfo:@{
-            NSLocalizedDescriptionKey: @"下载完成但无法准备本地播放列表",
-            NSLocalizedFailureReasonErrorKey: @"请稍后重试或更换链接。"
-        }]);
-        return;
-    }
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        NSError *prepareError = nil;
+        NSURL *playlistURL = [self prepareLocalPlaylistForFFmpegFromPackage:packageURL
+                                                                       task:task
+                                                                      error:&prepareError];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (!playlistURL) {
+                completionBlock(taskId, NO, prepareError ?: [NSError errorWithDomain:@"M3U8ConverterError"
+                                                                                code:-1019
+                                                                            userInfo:@{
+                    NSLocalizedDescriptionKey: @"下载完成但无法准备本地播放列表",
+                    NSLocalizedFailureReasonErrorKey: @"请稍后重试或更换链接。"
+                }]);
+                return;
+            }
 
-    task.localSourceURL = playlistURL;
-    NSLog(@"[转换服务] 下载完成，使用FFmpeg进行本地转码");
-    [self convertWithFFmpeg:task progress:progressBlock completion:completionBlock];
+            task.localSourceURL = playlistURL;
+            NSLog(@"[转换服务] 下载完成，使用FFmpeg进行本地转码");
+            [self convertWithFFmpeg:task progress:progressBlock completion:completionBlock];
+        });
+    });
 }
 
 - (void)URLSession:(NSURLSession *)session
@@ -631,17 +637,12 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     NSArray<NSString *> *lines = [content componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
     NSMutableArray<NSString *> *outputLines = [NSMutableArray arrayWithCapacity:lines.count];
     NSMutableArray<NSString *> *segmentLines = [NSMutableArray array];
-    NSString *mapLine = nil;
     for (NSString *line in lines) {
-        if ([line hasPrefix:@"#EXT-X-MAP"]) {
-            mapLine = line;
-        }
         if (line.length > 0 && ![line hasPrefix:@"#"]) {
             [segmentLines addObject:line];
         }
     }
 
-    NSURL *playlistDir = [playlistURL URLByDeletingLastPathComponent];
     BOOL needsRemap = NO;
     for (NSString *segment in segmentLines) {
         NSURL *segURL = [NSURL URLWithString:segment relativeToURL:playlistURL];
@@ -651,27 +652,32 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         }
     }
 
-    NSArray<NSURL *> *candidateFiles = @[];
-    if (needsRemap) {
-        candidateFiles = [self collectSegmentFilesUnderDirectory:playlistDir];
-        if (candidateFiles.count == 0) {
-            if (error) {
-                *error = [NSError errorWithDomain:@"M3U8ConverterError"
-                                             code:-1023
-                                         userInfo:@{
-                    NSLocalizedDescriptionKey: @"本地分片不足",
-                    NSLocalizedFailureReasonErrorKey: @"下载包中未找到可用分片文件。"
-                }];
-            }
-            return nil;
+    NSArray<NSURL *> *candidateFiles = [self collectSegmentFilesUnderDirectory:packageURL];
+    NSMutableDictionary<NSString *, NSURL *> *fileNameMap = [NSMutableDictionary dictionary];
+    if (candidateFiles.count == 0 && needsRemap) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"M3U8ConverterError"
+                                         code:-1023
+                                     userInfo:@{
+                NSLocalizedDescriptionKey: @"本地分片不足",
+                NSLocalizedFailureReasonErrorKey: @"下载包中未找到可用分片文件。"
+            }];
+        }
+        return nil;
+    }
+    for (NSURL *fileURL in candidateFiles) {
+        if (fileURL.lastPathComponent.length > 0 && !fileNameMap[fileURL.lastPathComponent]) {
+            fileNameMap[fileURL.lastPathComponent] = fileURL;
         }
     }
 
     NSUInteger segmentIndex = 0;
     for (NSString *line in lines) {
-        if (mapLine && [line hasPrefix:@"#EXT-X-MAP"]) {
-            NSString *rewritten = [self rewriteMapLine:mapLine
-                                         playlistDir:playlistDir];
+        if ([line hasPrefix:@"#EXT-X-MAP"]) {
+            NSString *rewritten = [self rewriteMapLine:line
+                                           playlistURL:playlistURL
+                                            packageURL:packageURL
+                                           fileNameMap:fileNameMap];
             [outputLines addObject:rewritten ?: line];
             continue;
         }
@@ -679,16 +685,28 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         if (line.length > 0 && ![line hasPrefix:@"#"]) {
             NSURL *segURL = nil;
             if (needsRemap) {
-                if (segmentIndex < candidateFiles.count) {
-                    segURL = candidateFiles[segmentIndex];
+                NSString *name = [NSURL URLWithString:line].lastPathComponent;
+                if (name.length > 0 && fileNameMap[name]) {
+                    segURL = fileNameMap[name];
                 } else {
-                    segURL = [NSURL URLWithString:line relativeToURL:playlistURL];
+                    NSURL *suffixMatch = [self findFileBySuffix:line underDirectory:packageURL];
+                    if (suffixMatch) {
+                        segURL = suffixMatch;
+                    }
+                }
+                if (!segURL) {
+                    if (segmentIndex < candidateFiles.count) {
+                        segURL = candidateFiles[segmentIndex];
+                    } else {
+                        segURL = [NSURL URLWithString:line relativeToURL:playlistURL];
+                    }
                 }
             } else {
                 segURL = [NSURL URLWithString:line relativeToURL:playlistURL];
             }
             NSString *path = segURL.path ?: line;
-            [outputLines addObject:path];
+            NSString *fileURLString = [self fileURLStringForPath:path];
+            [outputLines addObject:fileURLString ?: path];
             segmentIndex += 1;
         } else {
             [outputLines addObject:line];
@@ -698,11 +716,35 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     NSString *rewritten = [outputLines componentsJoinedByString:@"\n"];
     M3U8FileManagerService *fileManager = [M3U8FileManagerService sharedService];
     NSURL *cacheDir = [fileManager sourceCacheDirectory];
-    NSString *baseName = [[task fileName] stringByDeletingPathExtension];
+    NSString *baseName = task.taskId;
     NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
     NSString *fileName = [NSString stringWithFormat:@"%@_ffmpeg_%ld.m3u8", baseName, (long)timestamp];
     NSURL *outURL = [cacheDir URLByAppendingPathComponent:fileName];
-    [rewritten writeToURL:outURL atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    NSError *writeError = nil;
+    BOOL ok = [rewritten writeToURL:outURL atomically:YES encoding:NSUTF8StringEncoding error:&writeError];
+    if (!ok) {
+        if (error) {
+            *error = writeError ?: [NSError errorWithDomain:@"M3U8ConverterError"
+                                                       code:-1024
+                                                   userInfo:@{
+                NSLocalizedDescriptionKey: @"无法写入本地播放列表",
+                NSLocalizedFailureReasonErrorKey: @"请检查存储空间或重试。"
+            }];
+        }
+        return nil;
+    }
+    BOOL exists = [[NSFileManager defaultManager] fileExistsAtPath:outURL.path];
+    if (!exists) {
+        if (error) {
+            *error = [NSError errorWithDomain:@"M3U8ConverterError"
+                                         code:-1025
+                                     userInfo:@{
+                NSLocalizedDescriptionKey: @"播放列表写入后未找到文件",
+                NSLocalizedFailureReasonErrorKey: @"请稍后重试。"
+            }];
+        }
+        return nil;
+    }
     return outURL;
 }
 
@@ -762,23 +804,104 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     return files;
 }
 
-- (NSString *)rewriteMapLine:(NSString *)mapLine playlistDir:(NSURL *)playlistDir {
-    NSRange uriRange = [mapLine rangeOfString:@"URI=\""];
+- (NSString *)rewriteMapLine:(NSString *)mapLine
+                 playlistURL:(NSURL *)playlistURL
+                  packageURL:(NSURL *)packageURL
+                  fileNameMap:(NSDictionary<NSString *, NSURL *> *)fileNameMap {
+    NSRange uriRange = [mapLine rangeOfString:@"URI="];
     if (uriRange.location == NSNotFound) {
         return mapLine;
     }
     NSUInteger start = uriRange.location + uriRange.length;
-    NSRange endRange = [mapLine rangeOfString:@"\"" options:0 range:NSMakeRange(start, mapLine.length - start)];
-    if (endRange.location == NSNotFound) {
+    NSString *tail = [mapLine substringFromIndex:start];
+    NSString *uri = nil;
+    if ([tail hasPrefix:@"\""]) {
+        NSString *rest = [tail substringFromIndex:1];
+        NSRange endRange = [rest rangeOfString:@"\""];
+        if (endRange.location != NSNotFound) {
+            uri = [rest substringToIndex:endRange.location];
+        }
+    } else {
+        NSRange endRange = [tail rangeOfString:@","];
+        if (endRange.location == NSNotFound) {
+            uri = tail;
+        } else {
+            uri = [tail substringToIndex:endRange.location];
+        }
+    }
+    if (uri.length == 0) {
         return mapLine;
     }
-    NSString *uri = [mapLine substringWithRange:NSMakeRange(start, endRange.location - start)];
-    NSURL *mapURL = [NSURL URLWithString:uri relativeToURL:playlistDir];
-    if (![[NSFileManager defaultManager] fileExistsAtPath:mapURL.path]) {
-        return mapLine;
+
+    NSURL *mapURL = [NSURL URLWithString:uri relativeToURL:playlistURL];
+    NSURL *resolved = nil;
+    if ([[NSFileManager defaultManager] fileExistsAtPath:mapURL.path]) {
+        resolved = mapURL;
     }
-    NSString *newLine = [mapLine stringByReplacingOccurrencesOfString:uri withString:mapURL.path];
-    return newLine;
+
+    if (!resolved) {
+        NSString *fileName = mapURL.lastPathComponent;
+        resolved = fileNameMap[fileName] ?: [self findFileNamed:fileName underDirectory:packageURL];
+    }
+
+    if (!resolved) {
+        resolved = [self findFileBySuffix:uri underDirectory:packageURL];
+    }
+
+    if (!resolved) {
+        resolved = mapURL;
+    }
+
+    NSString *fileURLString = [self fileURLStringForPath:resolved.path ?: uri];
+    return [mapLine stringByReplacingOccurrencesOfString:uri withString:fileURLString ?: uri];
+}
+
+- (NSString *)fileURLStringForPath:(NSString *)path {
+    if (path.length == 0) {
+        return nil;
+    }
+    NSURL *url = [NSURL fileURLWithPath:path];
+    return url.absoluteString;
+}
+
+- (NSURL *)findFileNamed:(NSString *)fileName underDirectory:(NSURL *)directoryURL {
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSDirectoryEnumerator<NSURL *> *enumerator = [fileManager enumeratorAtURL:directoryURL
+                                                   includingPropertiesForKeys:nil
+                                                                      options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                 errorHandler:nil];
+    for (NSURL *fileURL in enumerator) {
+        if ([fileURL.lastPathComponent isEqualToString:fileName]) {
+            return fileURL;
+        }
+    }
+    return nil;
+}
+
+- (NSURL *)findFileBySuffix:(NSString *)suffix underDirectory:(NSURL *)directoryURL {
+    if (suffix.length == 0) {
+        return nil;
+    }
+    NSString *normalized = [suffix stringByReplacingOccurrencesOfString:@"\\" withString:@"/"];
+    if ([normalized hasPrefix:@"file://"]) {
+        NSURL *url = [NSURL URLWithString:normalized];
+        normalized = url.path ?: normalized;
+    }
+    if ([normalized hasPrefix:@"/"]) {
+        normalized = [normalized substringFromIndex:1];
+    }
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSDirectoryEnumerator<NSURL *> *enumerator = [fileManager enumeratorAtURL:directoryURL
+                                                   includingPropertiesForKeys:nil
+                                                                      options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                 errorHandler:nil];
+    for (NSURL *fileURL in enumerator) {
+        NSString *path = fileURL.path;
+        if ([path hasSuffix:normalized]) {
+            return fileURL;
+        }
+    }
+    return nil;
 }
 
 - (void)cleanLocalSourceIfNeededForTask:(M3U8ConversionTask *)task {
@@ -790,6 +913,17 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
         [fileManager deleteFileAtURL:task.localSourceURL error:nil];
     }
     task.localSourceURL = nil;
+}
+
+- (void)cleanupTempPlaylistIfNeededForTask:(M3U8ConversionTask *)task {
+    if (!task.localSourceURL) {
+        return;
+    }
+    NSString *name = task.localSourceURL.lastPathComponent;
+    if ([name containsString:@"_ffmpeg_"] && [name hasSuffix:@".m3u8"]) {
+        M3U8FileManagerService *fileManager = [M3U8FileManagerService sharedService];
+        [fileManager deleteFileAtURL:task.localSourceURL error:nil];
+    }
 }
 
 @end
