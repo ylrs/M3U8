@@ -147,44 +147,32 @@
         NSURL *outputURL = [self generateOutputURLForTask:task];
         NSLog(@"[FFmpeg服务] 输出URL: %@", outputURL);
 
-        // 构建FFmpeg命令
         NSString *sourceArg = inputURL.isFileURL ? inputURL.path : inputURL.absoluteString;
-        NSString *command = [self buildFFmpegCommandForSource:sourceArg
-                                                       output:outputURL.path
-                                                      quality:quality];
+        NSString *remuxCommand = [self buildRemuxCommandForSource:sourceArg
+                                                          output:outputURL.path];
+        NSLog(@"[FFmpeg服务] 优先尝试无损合并: ffmpeg %@", remuxCommand);
 
-        NSLog(@"[FFmpeg服务] FFmpeg 命令: ffmpeg %@", command);
-
-        // 执行FFmpeg命令
-        FFmpegSession *session = [FFmpegKit executeAsync:command
+        FFmpegSession *session = [FFmpegKit executeAsync:remuxCommand
                                          withCompleteCallback:^(FFmpegSession *session) {
             ReturnCode *returnCode = [session getReturnCode];
-
             if ([ReturnCode isSuccess:returnCode]) {
-                NSLog(@"[FFmpeg服务] 转换成功！");
+                NSLog(@"[FFmpeg服务] 无损合并成功！");
                 task.outputURL = outputURL;
                 dispatch_async(dispatch_get_main_queue(), ^{
                     completionBlock(task.taskId, YES, nil);
                 });
-            } else {
-                NSLog(@"[FFmpeg服务] 转换失败");
-                NSLog(@"[FFmpeg服务] 输出: %@", [session getOutput]);
-                NSLog(@"[FFmpeg服务] 错误: %@", [session getFailStackTrace]);
-
-                NSError *error = [NSError errorWithDomain:@"M3U8FFmpegError"
-                                                     code:[returnCode getValue]
-                                                 userInfo:@{
-                    NSLocalizedDescriptionKey: @"FFmpeg conversion failed",
-                    NSLocalizedFailureReasonErrorKey: [session getOutput] ?: @"Unknown error"
-                }];
-
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    completionBlock(task.taskId, NO, error);
-                });
+                [self.activeSessions removeObjectForKey:task.taskId];
+                return;
             }
 
-            // 移除会话
-            [self.activeSessions removeObjectForKey:task.taskId];
+            NSLog(@"[FFmpeg服务] 无损合并失败，回退转码");
+            [[NSFileManager defaultManager] removeItemAtURL:outputURL error:nil];
+            [self runTranscodeWithTask:task
+                              inputURL:inputURL
+                             outputURL:outputURL
+                               quality:quality
+                              progress:progressBlock
+                            completion:completionBlock];
         }
                                              withLogCallback:^(Log *log) {
             NSString *message = [log getMessage] ?: @"";
@@ -196,18 +184,7 @@
                 NSLog(@"[FFmpeg Log] %@", message);
             }
         }
-                                      withStatisticsCallback:^(Statistics *statistics) {
-            // 计算进度
-            int time = [statistics getTime];
-            if (time > 0 && task.duration > 0) {
-                CGFloat progress = (CGFloat)time / (task.duration * 1000.0);
-                progress = MIN(MAX(progress, 0.0), 1.0);
-
-                dispatch_async(dispatch_get_main_queue(), ^{
-                    progressBlock(task.taskId, progress);
-                });
-            }
-        }];
+                                      withStatisticsCallback:nil];
 
         // 保存会话以便取消
         self.activeSessions[task.taskId] = session;
@@ -229,8 +206,8 @@
 #pragma mark - Private Methods
 
 - (NSString *)buildFFmpegCommandForSource:(NSString *)sourceURL
-                                   output:(NSString *)outputPath
-                                  quality:(M3U8VideoQuality)quality {
+                                  output:(NSString *)outputPath
+                                 quality:(M3U8VideoQuality)quality {
 
     // CRF 值 (Constant Rate Factor): 值越小质量越高
     // 0 = 无损, 18 = 视觉上无损, 23 = 默认, 28 = 低质量
@@ -289,6 +266,86 @@
     ];
 
     return command;
+}
+
+- (NSString *)buildRemuxCommandForSource:(NSString *)sourceURL
+                                 output:(NSString *)outputPath {
+    NSString *command = [NSString stringWithFormat:
+        @"-protocol_whitelist file,crypto,concat,subfile "
+        @"-allowed_extensions ALL "
+        @"-i \"%@\" "
+        @"-c copy "
+        @"-bsf:a aac_adtstoasc "
+        @"-movflags +faststart "
+        @"-y "
+        @"\"%@\"",
+        sourceURL,
+        outputPath
+    ];
+    return command;
+}
+
+- (void)runTranscodeWithTask:(M3U8ConversionTask *)task
+                   inputURL:(NSURL *)inputURL
+                   outputURL:(NSURL *)outputURL
+                     quality:(M3U8VideoQuality)quality
+                    progress:(M3U8FFmpegProgressBlock)progressBlock
+                  completion:(M3U8FFmpegCompletionBlock)completionBlock {
+    NSString *sourceArg = inputURL.isFileURL ? inputURL.path : inputURL.absoluteString;
+    NSString *command = [self buildFFmpegCommandForSource:sourceArg
+                                                   output:outputURL.path
+                                                  quality:quality];
+
+    NSLog(@"[FFmpeg服务] FFmpeg 命令: ffmpeg %@", command);
+
+    FFmpegSession *session = [FFmpegKit executeAsync:command
+                                 withCompleteCallback:^(FFmpegSession *session) {
+        ReturnCode *returnCode = [session getReturnCode];
+
+        if ([ReturnCode isSuccess:returnCode]) {
+            NSLog(@"[FFmpeg服务] 转换成功！");
+            task.outputURL = outputURL;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completionBlock(task.taskId, YES, nil);
+            });
+        } else {
+            NSString *allLogs = [session getAllLogsAsString];
+            NSError *error = [NSError errorWithDomain:@"M3U8FFmpegError"
+                                                 code:-2005
+                                             userInfo:@{
+                NSLocalizedDescriptionKey: @"FFmpeg转码失败",
+                NSLocalizedFailureReasonErrorKey: allLogs ?: @"未知错误"
+            }];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completionBlock(task.taskId, NO, error);
+            });
+        }
+
+        [self.activeSessions removeObjectForKey:task.taskId];
+    }
+                                     withLogCallback:^(Log *log) {
+        NSString *message = [log getMessage] ?: @"";
+        NSString *lower = message.lowercaseString;
+        if ([lower containsString:@"error"] ||
+            [lower containsString:@"failed"] ||
+            [lower containsString:@"invalid"] ||
+            [lower containsString:@"unable to open"]) {
+            NSLog(@"[FFmpeg Log] %@", message);
+        }
+    }
+                          withStatisticsCallback:^(Statistics *statistics) {
+        int time = [statistics getTime];
+        if (time > 0 && task.duration > 0) {
+            CGFloat progress = (CGFloat)time / (task.duration * 1000.0);
+            progress = MIN(MAX(progress, 0.0), 1.0);
+
+            dispatch_async(dispatch_get_main_queue(), ^{
+                progressBlock(task.taskId, progress);
+            });
+        }
+    }];
+
+    self.activeSessions[task.taskId] = session;
 }
 
 - (NSURL *)generateOutputURLForTask:(M3U8ConversionTask *)task {
