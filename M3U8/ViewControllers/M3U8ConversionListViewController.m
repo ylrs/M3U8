@@ -386,6 +386,15 @@
         [alert addAction:[UIAlertAction actionWithTitle:@"取消转换" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
             [self cancelTask:task];
         }]];
+        if (task.status == M3U8ConversionStatusPreparing && task.downloadProgress >= 1.0) {
+            [alert addAction:[UIAlertAction actionWithTitle:@"开始转码" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                task.convertProgress = 0.0;
+                task.errorMessage = nil;
+                [self updateTaskInTable:task];
+                [self saveTasksToDisk];
+                [self startConversionForTask:task];
+            }]];
+        }
     } else if (task.status == M3U8ConversionStatusCompleted) {
         [alert addAction:[UIAlertAction actionWithTitle:@"查看视频" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self playTaskOutput:task];
@@ -393,10 +402,26 @@
         [alert addAction:[UIAlertAction actionWithTitle:@"分享" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self shareTaskOutput:task];
         }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"重新转码" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            task.convertProgress = 0.0;
+            task.errorMessage = nil;
+            [self updateTaskInTable:task];
+            [self saveTasksToDisk];
+            [self startConversionForTask:task];
+        }]];
     } else if (task.status == M3U8ConversionStatusPaused) {
         [alert addAction:[UIAlertAction actionWithTitle:@"继续" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self startConversionForTask:task];
         }]];
+        if (task.downloadProgress >= 1.0) {
+            [alert addAction:[UIAlertAction actionWithTitle:@"开始转码" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                task.convertProgress = 0.0;
+                task.errorMessage = nil;
+                [self updateTaskInTable:task];
+                [self saveTasksToDisk];
+                [self startConversionForTask:task];
+            }]];
+        }
     } else if (task.status == M3U8ConversionStatusPending) {
         [alert addAction:[UIAlertAction actionWithTitle:@"开始" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self startConversionForTask:task];

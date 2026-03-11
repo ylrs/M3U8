@@ -408,6 +408,25 @@
 
 #pragma mark - AVFoundation Download + FFmpeg Convert
 
+- (void)loadDurationForURL:(NSURL *)url completion:(void(^)(NSTimeInterval duration))completion {
+    if (!url) {
+        completion(0);
+        return;
+    }
+    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
+    NSArray *keys = @[@"duration"];
+    [asset loadValuesAsynchronouslyForKeys:keys completionHandler:^{
+        NSError *error = nil;
+        AVKeyValueStatus status = [asset statusOfValueForKey:@"duration" error:&error];
+        if (status == AVKeyValueStatusLoaded) {
+            NSTimeInterval duration = CMTimeGetSeconds(asset.duration);
+            completion(isnan(duration) ? 0 : duration);
+        } else {
+            completion(0);
+        }
+    }];
+}
+
 - (void)downloadWithAVFoundationThenConvertWithFFmpeg:(M3U8ConversionTask *)task
                                              progress:(M3U8ConversionProgressBlock)progressBlock
                                            completion:(M3U8ConversionCompletionBlock)completionBlock {
@@ -571,28 +590,35 @@ didFinishDownloadingToURL:(NSURL *)location {
         NSURL *playlistURL = [self prepareLocalPlaylistForFFmpegFromPackage:packageURL
                                                                        task:task
                                                                       error:&prepareError];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (!playlistURL) {
+        if (!playlistURL) {
+            dispatch_async(dispatch_get_main_queue(), ^{
                 completionBlock(taskId, NO, prepareError ?: [NSError errorWithDomain:@"M3U8ConverterError"
                                                                                 code:-1019
                                                                             userInfo:@{
                     NSLocalizedDescriptionKey: @"下载完成但无法准备本地播放列表",
                     NSLocalizedFailureReasonErrorKey: @"请稍后重试或更换链接。"
                 }]);
-                return;
-            }
+            });
+            return;
+        }
 
-            task.localSourceURL = playlistURL;
-            task.downloadProgress = 1.0;
-            task.convertProgress = 0.0;
-            if (task.status == M3U8ConversionStatusPaused) {
-                NSLog(@"[转换服务] 下载完成，已暂停，等待手动继续");
-                return;
-            }
-            task.status = M3U8ConversionStatusConverting;
-            NSLog(@"[转换服务] 下载完成，使用FFmpeg进行本地转码");
-            [self convertWithFFmpeg:task progress:progressBlock completion:completionBlock];
-        });
+        [self loadDurationForURL:playlistURL completion:^(NSTimeInterval duration) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                task.localSourceURL = playlistURL;
+                if (duration > 0) {
+                    task.duration = duration;
+                }
+                task.downloadProgress = 1.0;
+                task.convertProgress = 0.0;
+                if (task.status == M3U8ConversionStatusPaused) {
+                    NSLog(@"[转换服务] 下载完成，已暂停，等待手动继续");
+                    return;
+                }
+                task.status = M3U8ConversionStatusConverting;
+                NSLog(@"[转换服务] 下载完成，使用FFmpeg进行本地转码");
+                [self convertWithFFmpeg:task progress:progressBlock completion:completionBlock];
+            });
+        }];
     });
 }
 
@@ -723,7 +749,14 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     NSArray<NSString *> *lines = [content componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]];
     NSMutableArray<NSString *> *outputLines = [NSMutableArray arrayWithCapacity:lines.count];
     NSMutableArray<NSString *> *segmentLines = [NSMutableArray array];
+    NSTimeInterval totalDuration = 0;
     for (NSString *line in lines) {
+        if ([line hasPrefix:@"#EXTINF:"]) {
+            NSString *value = [[line substringFromIndex:8] componentsSeparatedByString:@","].firstObject;
+            if (value.length > 0) {
+                totalDuration += value.doubleValue;
+            }
+        }
         if (line.length > 0 && ![line hasPrefix:@"#"]) {
             [segmentLines addObject:line];
         }
@@ -872,6 +905,9 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
             }];
         }
         return nil;
+    }
+    if (totalDuration > 0) {
+        task.duration = totalDuration;
     }
     return outURL;
 }
