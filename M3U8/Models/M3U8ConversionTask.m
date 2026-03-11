@@ -28,7 +28,11 @@
     if (self.customTitle.length > 0) {
         return self.customTitle;
     }
-    return self.sourceURL.lastPathComponent;
+    NSString *name = self.sourceURL.lastPathComponent;
+    if (name.length == 0) {
+        return self.taskId ?: @"output";
+    }
+    return name;
 }
 
 - (NSString *)outputFileName {
@@ -57,6 +61,8 @@
             return @"准备中";
         case M3U8ConversionStatusConverting:
             return @"转换中";
+        case M3U8ConversionStatusPaused:
+            return @"已暂停";
         case M3U8ConversionStatusCompleted:
             return @"已完成";
         case M3U8ConversionStatusFailed:

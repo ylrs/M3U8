@@ -17,6 +17,7 @@
 @property (nonatomic, strong) M3U8ConversionService *conversionService;
 @property (nonatomic, strong) UIBarButtonItem *startAllButton;
 @property (nonatomic, strong) UIBarButtonItem *clearButton;
+@property (nonatomic, strong) NSMutableSet<NSString *> *autoResumeTaskIds;
 
 @end
 
@@ -33,6 +34,7 @@
     self.tasks = [NSMutableArray array];
     self.conversionService = [M3U8ConversionService sharedService];
     self.conversionService.delegate = self;
+    self.autoResumeTaskIds = [NSMutableSet set];
 
     [self setupUI];
     [self setupNavigationBar];
@@ -82,16 +84,63 @@
                                              selector:@selector(handleAddTaskNotification:)
                                                  name:@"AddConversionTask"
                                                object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleAppDidEnterBackground)
+                                                 name:UIApplicationDidEnterBackgroundNotification
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(handleAppWillEnterForeground)
+                                                 name:UIApplicationWillEnterForegroundNotification
+                                               object:nil];
 }
 
 #pragma mark - Actions
 
 - (void)startAllTasks {
     for (M3U8ConversionTask *task in self.tasks) {
-        if (task.status == M3U8ConversionStatusPending) {
+        if (task.status == M3U8ConversionStatusPending ||
+            task.status == M3U8ConversionStatusPaused) {
             [self startConversionForTask:task];
         }
     }
+}
+
+- (void)pauseTask:(M3U8ConversionTask *)task
+           reason:(NSString *)reason
+       autoResume:(BOOL)autoResume {
+    [self.conversionService cancelConversionForTaskId:task.taskId];
+    task.status = M3U8ConversionStatusPaused;
+    task.errorMessage = reason;
+    if (autoResume) {
+        [self.autoResumeTaskIds addObject:task.taskId];
+    }
+}
+
+- (void)handleAppDidEnterBackground {
+    BOOL updated = NO;
+    for (M3U8ConversionTask *task in self.tasks) {
+        if (task.status == M3U8ConversionStatusPreparing ||
+            task.status == M3U8ConversionStatusConverting) {
+            [self pauseTask:task
+                     reason:@"已进入后台，任务已暂停，回到前台将自动重试。"
+                 autoResume:YES];
+            updated = YES;
+        }
+    }
+    if (updated) {
+        [self.tableView reloadData];
+        [self saveTasksToDisk];
+    }
+}
+
+- (void)handleAppWillEnterForeground {
+    for (M3U8ConversionTask *task in self.tasks) {
+        if (task.status == M3U8ConversionStatusPaused &&
+            [self.autoResumeTaskIds containsObject:task.taskId]) {
+            [self startConversionForTask:task];
+        }
+    }
+    [self.autoResumeTaskIds removeAllObjects];
 }
 
 - (void)clearCompleted {
@@ -130,6 +179,7 @@
 - (void)startConversionForTask:(M3U8ConversionTask *)task {
     NSLog(@"[转换列表] 开始转换任务: %@", task.taskId);
     task.status = M3U8ConversionStatusConverting;
+    task.errorMessage = nil;
     [self updateTaskInTable:task];
     [self saveTasksToDisk];
 
@@ -150,6 +200,12 @@
         NSLog(@"[转换列表] 任务 %@ 完成，成功: %d, 错误: %@", taskId, success, error);
         for (M3U8ConversionTask *t in weakSelf.tasks) {
             if ([t.taskId isEqualToString:taskId]) {
+                if (t.status == M3U8ConversionStatusPaused ||
+                    t.status == M3U8ConversionStatusCancelled) {
+                    [weakSelf updateTaskInTable:t];
+                    [weakSelf saveTasksToDisk];
+                    break;
+                }
                 if (success) {
                     t.status = M3U8ConversionStatusCompleted;
                     t.completedAt = [NSDate date];
@@ -278,6 +334,8 @@
         case M3U8ConversionStatusPreparing:
         case M3U8ConversionStatusConverting:
             return [UIColor systemBlueColor];
+        case M3U8ConversionStatusPaused:
+            return [UIColor systemGrayColor];
         case M3U8ConversionStatusCompleted:
             return [UIColor systemGreenColor];
         case M3U8ConversionStatusFailed:
@@ -300,6 +358,11 @@
                                                             preferredStyle:UIAlertControllerStyleActionSheet];
 
     if ([task isActive]) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"暂停" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [self pauseTask:task reason:@"任务已手动暂停。" autoResume:NO];
+            [self.tableView reloadData];
+            [self saveTasksToDisk];
+        }]];
         [alert addAction:[UIAlertAction actionWithTitle:@"取消转换" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
             [self cancelTask:task];
         }]];
@@ -310,7 +373,19 @@
         [alert addAction:[UIAlertAction actionWithTitle:@"分享" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self shareTaskOutput:task];
         }]];
+    } else if (task.status == M3U8ConversionStatusPaused) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"继续" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [self startConversionForTask:task];
+        }]];
+    } else if (task.status == M3U8ConversionStatusPending) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"开始" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [self startConversionForTask:task];
+        }]];
     } else if (task.status == M3U8ConversionStatusFailed) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"重试" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [self retryTask:task];
+        }]];
+    } else if (task.status == M3U8ConversionStatusCancelled) {
         [alert addAction:[UIAlertAction actionWithTitle:@"重试" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             [self retryTask:task];
         }]];

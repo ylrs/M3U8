@@ -104,6 +104,18 @@
     NSLog(@"[FFmpeg服务] 质量级别: %ld", (long)quality);
 
     dispatch_async(self.conversionQueue, ^{
+        if (!inputURL) {
+            NSError *error = [NSError errorWithDomain:@"M3U8FFmpegError"
+                                                 code:-2003
+                                             userInfo:@{
+                NSLocalizedDescriptionKey: @"源文件为空",
+                NSLocalizedFailureReasonErrorKey: @"未找到可用的源URL，无法开始转换。"
+            }];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                completionBlock(task.taskId, NO, error);
+            });
+            return;
+        }
         if ([inputURL.scheme.lowercaseString isEqualToString:@"https"] &&
             ![M3U8FFmpegService isHTTPSProtocolAvailable]) {
             NSError *error = [NSError errorWithDomain:@"M3U8FFmpegError"

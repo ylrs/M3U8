@@ -14,6 +14,7 @@ typedef NS_ENUM(NSInteger, M3U8ConversionStatus) {
     M3U8ConversionStatusPending = 0,      // 等待中
     M3U8ConversionStatusPreparing,        // 准备中
     M3U8ConversionStatusConverting,       // 转换中
+    M3U8ConversionStatusPaused,           // 已暂停
     M3U8ConversionStatusCompleted,        // 已完成
     M3U8ConversionStatusFailed,           // 失败
     M3U8ConversionStatusCancelled         // 已取消

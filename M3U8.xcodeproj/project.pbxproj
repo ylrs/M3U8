@@ -103,7 +103,7 @@
 		7A0C1A3F3F1D4B8A00000004 /* content.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = content.css; sourceTree = "<group>"; };
 		7A0C1A3F3F1D4B8A00000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		7A0C1A3F3F1D4B8A00000006 /* SafariWebExtensionHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SafariWebExtensionHandler.m; sourceTree = "<group>"; };
-		7A0C1A3F3F1D4B8A00000007 /* SafariWebExtension.appex */ = {isa = PBXFileReference; explicitFileType = wrapper.app-extension; includeInIndex = 0; path = SafariWebExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		7A0C1A3F3F1D4B8A00000007 /* SafariWebExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SafariWebExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -200,18 +200,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		7A0C1A3F3F1D4B8A00000001 /* SafariWebExtension */ = {
-			isa = PBXGroup;
-			children = (
-				7A0C1A3F3F1D4B8A00000002 /* manifest.json */,
-				7A0C1A3F3F1D4B8A00000003 /* content.js */,
-				7A0C1A3F3F1D4B8A00000004 /* content.css */,
-				7A0C1A3F3F1D4B8A00000005 /* Info.plist */,
-				7A0C1A3F3F1D4B8A00000006 /* SafariWebExtensionHandler.m */,
-			);
-			path = SafariWebExtension;
-			sourceTree = "<group>";
-		};
 		34E188892F56B5660005CFA3 /* ffmpeg-kit-ios-min-gpl */ = {
 			isa = PBXGroup;
 			children = (
@@ -225,6 +213,18 @@
 				34E188882F56B5660005CFA3 /* libswscale.xcframework */,
 			);
 			path = "ffmpeg-kit-ios-min-gpl";
+			sourceTree = "<group>";
+		};
+		7A0C1A3F3F1D4B8A00000001 /* SafariWebExtension */ = {
+			isa = PBXGroup;
+			children = (
+				7A0C1A3F3F1D4B8A00000002 /* manifest.json */,
+				7A0C1A3F3F1D4B8A00000003 /* content.js */,
+				7A0C1A3F3F1D4B8A00000004 /* content.css */,
+				7A0C1A3F3F1D4B8A00000005 /* Info.plist */,
+				7A0C1A3F3F1D4B8A00000006 /* SafariWebExtensionHandler.m */,
+			);
+			path = SafariWebExtension;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
