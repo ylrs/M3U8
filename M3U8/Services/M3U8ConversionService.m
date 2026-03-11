@@ -152,11 +152,53 @@
 
     // 策略选择
     if (isRemoteURL && isM3U8) {
+        NSFileManager *fm = [NSFileManager defaultManager];
+        if (task.localSourceURL && [fm fileExistsAtPath:task.localSourceURL.path]) {
+            task.status = M3U8ConversionStatusConverting;
+            task.downloadProgress = 1.0;
+            task.convertProgress = 0.0;
+            NSLog(@"[转换服务] 使用已缓存播放列表，直接FFmpeg转码");
+            [self convertWithFFmpeg:task progress:progressBlock completion:completionBlock];
+            return;
+        }
+        if (task.localPackageURL && [fm fileExistsAtPath:task.localPackageURL.path]) {
+            task.status = M3U8ConversionStatusPreparing;
+            task.downloadProgress = 1.0;
+            task.convertProgress = 0.0;
+            NSLog(@"[转换服务] 使用已缓存下载包，准备本地播放列表");
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+                NSError *prepareError = nil;
+                NSURL *playlistURL = [self prepareLocalPlaylistForFFmpegFromPackage:task.localPackageURL
+                                                                               task:task
+                                                                              error:&prepareError];
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (!playlistURL) {
+                        completionBlock(task.taskId, NO, prepareError ?: [NSError errorWithDomain:@"M3U8ConverterError"
+                                                                                            code:-1019
+                                                                                        userInfo:@{
+                            NSLocalizedDescriptionKey: @"无法准备本地播放列表",
+                            NSLocalizedFailureReasonErrorKey: @"请稍后重试或更换链接。"
+                        }]);
+                        return;
+                    }
+                    task.localSourceURL = playlistURL;
+                    task.status = M3U8ConversionStatusConverting;
+                    [self convertWithFFmpeg:task progress:progressBlock completion:completionBlock];
+                });
+            });
+            return;
+        }
+        task.status = M3U8ConversionStatusPreparing;
+        task.downloadProgress = 0.0;
+        task.convertProgress = 0.0;
         NSLog(@"[转换服务] 策略: 远程HLS流 → AVFoundation下载 → FFmpeg本地转码");
         [self downloadWithAVFoundationThenConvertWithFFmpeg:task
                                                    progress:progressBlock
                                                  completion:completionBlock];
     } else {
+        task.status = M3U8ConversionStatusConverting;
+        task.downloadProgress = 1.0;
+        task.convertProgress = 0.0;
         // 本地文件或非HLS流 - 优先尝试AVFoundation
         NSLog(@"[转换服务] 策略: 本地文件 → 尝试AVFoundation");
         [self convertWithAVFoundation:task
@@ -170,6 +212,19 @@
 - (void)convertWithFFmpeg:(M3U8ConversionTask *)task
                  progress:(M3U8ConversionProgressBlock)progressBlock
                completion:(M3U8ConversionCompletionBlock)completionBlock {
+
+    if (!task) {
+        if (completionBlock) {
+            completionBlock(@"", NO, [NSError errorWithDomain:@"M3U8ConverterError"
+                                                         code:-1023
+                                                     userInfo:@{
+                NSLocalizedDescriptionKey: @"任务为空，无法转换",
+                NSLocalizedFailureReasonErrorKey: @"任务可能已被释放或取消。"
+            }]);
+        }
+        return;
+    }
+    task.status = M3U8ConversionStatusConverting;
 
     if (![M3U8FFmpegService isFFmpegAvailable]) {
         NSLog(@"[转换服务] ❌ FFmpeg未安装");
@@ -448,6 +503,12 @@ timeRangeExpectedToLoad:(CMTimeRange)timeRangeExpectedToLoad {
     CGFloat progress = (CGFloat)(loaded / expected);
     progress = MIN(MAX(progress, 0.0), 1.0);
 
+    M3U8ConversionTask *task = self.downloadTaskModels[taskId];
+    if (task) {
+        task.status = M3U8ConversionStatusPreparing;
+        task.downloadProgress = progress;
+    }
+
     M3U8ConversionProgressBlock progressBlock = self.downloadProgressBlocks[taskId];
     if (progressBlock) {
         progressBlock(taskId, progress);
@@ -473,6 +534,22 @@ didFinishDownloadingToURL:(NSURL *)location {
     [self.downloadProgressBlocks removeObjectForKey:taskId];
     [self.downloadCompletionBlocks removeObjectForKey:taskId];
     [self.downloadTaskModels removeObjectForKey:taskId];
+
+    if (!task) {
+        if (completionBlock) {
+            completionBlock(taskId, NO, [NSError errorWithDomain:@"M3U8ConverterError"
+                                                           code:-1022
+                                                       userInfo:@{
+                NSLocalizedDescriptionKey: @"下载完成但任务已失效",
+                NSLocalizedFailureReasonErrorKey: @"任务可能已被取消或在后台被清理。"
+            }]);
+        }
+        return;
+    }
+
+    task.status = M3U8ConversionStatusConverting;
+    task.downloadProgress = 1.0;
+    task.convertProgress = 0.0;
 
     [self copyDownloadPackageIfNeededFromURL:location forTask:task];
     NSURL *packageURL = task.localPackageURL ?: location;

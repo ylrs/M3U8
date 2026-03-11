@@ -57,7 +57,7 @@
     self.tableView = [[UITableView alloc] initWithFrame:self.view.bounds style:UITableViewStylePlain];
     self.tableView.delegate = self;
     self.tableView.dataSource = self;
-    self.tableView.rowHeight = 100;
+    self.tableView.rowHeight = 92;
     self.tableView.separatorStyle = UITableViewCellSeparatorStyleSingleLine;
     [self.tableView registerClass:[UITableViewCell class] forCellReuseIdentifier:@"TaskCell"];
     [self.view addSubview:self.tableView];
@@ -134,12 +134,6 @@
 }
 
 - (void)handleAppWillEnterForeground {
-    for (M3U8ConversionTask *task in self.tasks) {
-        if (task.status == M3U8ConversionStatusPaused &&
-            [self.autoResumeTaskIds containsObject:task.taskId]) {
-            [self startConversionForTask:task];
-        }
-    }
     [self.autoResumeTaskIds removeAllObjects];
 }
 
@@ -178,8 +172,9 @@
 
 - (void)startConversionForTask:(M3U8ConversionTask *)task {
     NSLog(@"[转换列表] 开始转换任务: %@", task.taskId);
-    task.status = M3U8ConversionStatusConverting;
+    task.status = M3U8ConversionStatusPreparing;
     task.errorMessage = nil;
+    task.convertProgress = 0.0;
     [self updateTaskInTable:task];
     [self saveTasksToDisk];
 
@@ -190,7 +185,11 @@
         NSLog(@"[转换列表] 任务 %@ 进度: %.2f%%", taskId, progress * 100);
         for (M3U8ConversionTask *t in weakSelf.tasks) {
             if ([t.taskId isEqualToString:taskId]) {
-                t.progress = progress;
+                if (t.status == M3U8ConversionStatusPreparing) {
+                    t.downloadProgress = progress;
+                } else {
+                    t.convertProgress = progress;
+                }
                 [weakSelf updateTaskInTable:t];
                 break;
             }
@@ -209,7 +208,8 @@
                 if (success) {
                     t.status = M3U8ConversionStatusCompleted;
                     t.completedAt = [NSDate date];
-                    t.progress = 1.0;
+                    t.downloadProgress = 1.0;
+                    t.convertProgress = 1.0;
                 } else {
                     t.status = M3U8ConversionStatusFailed;
                     t.errorMessage = error.localizedDescription;
@@ -231,7 +231,10 @@
 
 - (void)retryTask:(M3U8ConversionTask *)task {
     task.status = M3U8ConversionStatusPending;
-    task.progress = 0;
+    BOOL hasLocalSource = task.localSourceURL && [[NSFileManager defaultManager] fileExistsAtPath:task.localSourceURL.path];
+    BOOL hasPackage = task.localPackageURL && [[NSFileManager defaultManager] fileExistsAtPath:task.localPackageURL.path];
+    task.downloadProgress = (hasLocalSource || hasPackage) ? 1.0 : 0.0;
+    task.convertProgress = 0.0;
     task.errorMessage = nil;
     [self updateTaskInTable:task];
     [self saveTasksToDisk];
@@ -296,32 +299,40 @@
     }
 
     // 文件名标签
-    UILabel *fileNameLabel = [[UILabel alloc] initWithFrame:CGRectMake(15, 10, cell.contentView.bounds.size.width - 30, 20)];
+    UILabel *fileNameLabel = [[UILabel alloc] initWithFrame:CGRectMake(15, 8, cell.contentView.bounds.size.width - 30, 20)];
     fileNameLabel.text = [task fileName];
     fileNameLabel.font = [UIFont boldSystemFontOfSize:16];
     [cell.contentView addSubview:fileNameLabel];
 
     // 状态标签
-    UILabel *statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(15, 35, 150, 15)];
+    UILabel *statusLabel = [[UILabel alloc] initWithFrame:CGRectMake(15, 34, 150, 16)];
     statusLabel.text = [task statusDisplayName];
     statusLabel.font = [UIFont systemFontOfSize:14];
     statusLabel.textColor = [self colorForStatus:task.status];
     [cell.contentView addSubview:statusLabel];
 
-    // 进度条
-    if ([task isActive]) {
-        UIProgressView *progressView = [[UIProgressView alloc] initWithFrame:CGRectMake(15, 60, cell.contentView.bounds.size.width - 30, 10)];
-        progressView.progress = task.progress;
-        progressView.tag = 1000;  // 用于后续更新
-        [cell.contentView addSubview:progressView];
-
-        // 进度百分比
-        UILabel *progressLabel = [[UILabel alloc] initWithFrame:CGRectMake(15, 75, 100, 15)];
-        progressLabel.text = [NSString stringWithFormat:@"%.0f%%", task.progress * 100];
+    BOOL showProgress = task.status == M3U8ConversionStatusPending ||
+                        task.status == M3U8ConversionStatusPreparing ||
+                        task.status == M3U8ConversionStatusConverting ||
+                        task.status == M3U8ConversionStatusPaused;
+    if (showProgress) {
+        UILabel *progressLabel = [[UILabel alloc] initWithFrame:CGRectMake(15, 68, cell.contentView.bounds.size.width - 30, 14)];
+        progressLabel.text = [NSString stringWithFormat:@"下载 %.0f%%   转换 %.0f%%",
+                              task.downloadProgress * 100,
+                              task.convertProgress * 100];
         progressLabel.font = [UIFont systemFontOfSize:12];
         progressLabel.textColor = [UIColor secondaryLabelColor];
-        progressLabel.tag = 1001;
         [cell.contentView addSubview:progressLabel];
+
+        UIProgressView *progressView = [[UIProgressView alloc] initWithFrame:CGRectMake(15, 56, cell.contentView.bounds.size.width - 30, 8)];
+        if (task.status == M3U8ConversionStatusConverting) {
+            progressView.progressTintColor = [UIColor systemGreenColor];
+            progressView.progress = task.convertProgress;
+        } else {
+            progressView.progressTintColor = [UIColor systemBlueColor];
+            progressView.progress = task.downloadProgress;
+        }
+        [cell.contentView addSubview:progressView];
     }
 
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -346,6 +357,15 @@
 }
 
 #pragma mark - UITableViewDelegate
+
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    M3U8ConversionTask *task = self.tasks[indexPath.row];
+    if (task.status == M3U8ConversionStatusCompleted ||
+        task.status == M3U8ConversionStatusFailed) {
+        return 60.0;
+    }
+    return 92.0;
+}
 
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
@@ -529,7 +549,7 @@ didFailConversionForTaskId:(NSString *)taskId
     for (M3U8ConversionTask *task in self.tasks) {
         if ([task isActive]) {
             task.status = M3U8ConversionStatusFailed;
-            task.progress = 0;
+            task.convertProgress = 0;
             task.errorMessage = @"应用已重启，任务中断，可点击重试。";
         }
     }

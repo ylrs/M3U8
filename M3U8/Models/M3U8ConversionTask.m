@@ -15,6 +15,8 @@
         _sourceType = sourceType;
         _status = M3U8ConversionStatusPending;
         _progress = 0.0;
+        _downloadProgress = 0.0;
+        _convertProgress = 0.0;
         _createdAt = [NSDate date];
         _fileSize = 0;
         _duration = 0;
@@ -98,6 +100,8 @@
     [coder encodeInteger:self.sourceType forKey:@"sourceType"];
     [coder encodeInteger:self.status forKey:@"status"];
     [coder encodeDouble:self.progress forKey:@"progress"];
+    [coder encodeDouble:self.downloadProgress forKey:@"downloadProgress"];
+    [coder encodeDouble:self.convertProgress forKey:@"convertProgress"];
     [coder encodeObject:self.createdAt forKey:@"createdAt"];
     [coder encodeObject:self.completedAt forKey:@"completedAt"];
     [coder encodeObject:self.errorMessage forKey:@"errorMessage"];
@@ -117,6 +121,8 @@
         _sourceType = [coder decodeIntegerForKey:@"sourceType"];
         _status = [coder decodeIntegerForKey:@"status"];
         _progress = [coder decodeDoubleForKey:@"progress"];
+        _downloadProgress = [coder decodeDoubleForKey:@"downloadProgress"];
+        _convertProgress = [coder decodeDoubleForKey:@"convertProgress"];
         _createdAt = [coder decodeObjectOfClass:[NSDate class] forKey:@"createdAt"];
         _completedAt = [coder decodeObjectOfClass:[NSDate class] forKey:@"completedAt"];
         _errorMessage = [coder decodeObjectOfClass:[NSString class] forKey:@"errorMessage"];

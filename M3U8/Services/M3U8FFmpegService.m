@@ -98,6 +98,19 @@
     return;
 #else
 
+    if (!task) {
+        NSError *error = [NSError errorWithDomain:@"M3U8FFmpegError"
+                                             code:-2004
+                                         userInfo:@{
+            NSLocalizedDescriptionKey: @"任务为空，无法转换",
+            NSLocalizedFailureReasonErrorKey: @"任务可能已被取消或释放。"
+        }];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            completionBlock(@"", NO, error);
+        });
+        return;
+    }
+
     NSURL *inputURL = task.localSourceURL ?: task.sourceURL;
     NSLog(@"[FFmpeg服务] 开始转换任务 %@", task.taskId);
     NSLog(@"[FFmpeg服务] 源URL: %@", inputURL);

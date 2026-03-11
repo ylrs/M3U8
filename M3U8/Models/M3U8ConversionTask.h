@@ -35,6 +35,8 @@ typedef NS_ENUM(NSInteger, M3U8InputSourceType) {
 @property (nonatomic, assign) M3U8InputSourceType sourceType;
 @property (nonatomic, assign) M3U8ConversionStatus status;
 @property (nonatomic, assign) CGFloat progress;
+@property (nonatomic, assign) CGFloat downloadProgress;
+@property (nonatomic, assign) CGFloat convertProgress;
 @property (nonatomic, strong) NSDate *createdAt;
 @property (nonatomic, strong, nullable) NSDate *completedAt;
 @property (nonatomic, copy, nullable) NSString *errorMessage;
