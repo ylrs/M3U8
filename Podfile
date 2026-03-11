@@ -6,14 +6,7 @@ use_frameworks!
 
 target 'M3U8' do
 
-#  pod 'AFNetworking','4.0.1'
-  target 'M3U8Tests' do
-    inherit! :search_paths
-    # Pods for testing
-  end
-
-  target 'M3U8UITests' do
-    # Pods for testing
-  end
+  pod 'AFNetworking','4.0.1'
+  pod 'SDWebImage'
 
 end

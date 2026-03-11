@@ -9,13 +9,11 @@
 /* Begin PBXBuildFile section */
 		34E18D3B2F6141200005CFA3 /* Pods_M3U8.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E949803B6150836DEBB9FD02 /* Pods_M3U8.framework */; };
 		34E18D3C2F6141200005CFA3 /* Pods_M3U8.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = E949803B6150836DEBB9FD02 /* Pods_M3U8.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		4CC9A01070BF08B9E7492AD2 /* Pods_M3U8_M3U8UITests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 26693F6C9E92FA878276C7D8 /* Pods_M3U8_M3U8UITests.framework */; };
 		7A0C1A3F3F1D4B8A00000008 /* SafariWebExtensionHandler.m in Sources */ = {isa = PBXBuildFile; fileRef = 7A0C1A3F3F1D4B8A00000006 /* SafariWebExtensionHandler.m */; };
 		7A0C1A3F3F1D4B8A00000009 /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = 7A0C1A3F3F1D4B8A00000002 /* manifest.json */; };
 		7A0C1A3F3F1D4B8A0000000A /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = 7A0C1A3F3F1D4B8A00000003 /* content.js */; };
 		7A0C1A3F3F1D4B8A0000000B /* content.css in Resources */ = {isa = PBXBuildFile; fileRef = 7A0C1A3F3F1D4B8A00000004 /* content.css */; };
 		7A0C1A3F3F1D4B8A00000013 /* SafariWebExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 7A0C1A3F3F1D4B8A00000007 /* SafariWebExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		D54BEF021BEC0C6FB7122A1C /* Pods_M3U8Tests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D6B8843F2BB8239F23D0A2AC /* Pods_M3U8Tests.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,10 +66,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0DA981F304CD5C6D10BA6446 /* Pods-M3U8Tests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-M3U8Tests.debug.xcconfig"; path = "Target Support Files/Pods-M3U8Tests/Pods-M3U8Tests.debug.xcconfig"; sourceTree = "<group>"; };
 		1A3A260A14FA6DB1A79DFE69 /* Pods-M3U8.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-M3U8.debug.xcconfig"; path = "Target Support Files/Pods-M3U8/Pods-M3U8.debug.xcconfig"; sourceTree = "<group>"; };
-		26693F6C9E92FA878276C7D8 /* Pods_M3U8_M3U8UITests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_M3U8_M3U8UITests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		313B82D4DDC399DF0BA772FF /* Pods-M3U8Tests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-M3U8Tests.release.xcconfig"; path = "Target Support Files/Pods-M3U8Tests/Pods-M3U8Tests.release.xcconfig"; sourceTree = "<group>"; };
 		34E187372F568B5B0005CFA3 /* M3U8.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = M3U8.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		34E187552F568B5C0005CFA3 /* M3U8Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = M3U8Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		34E1875F2F568B5C0005CFA3 /* M3U8UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = M3U8UITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -82,9 +77,6 @@
 		7A0C1A3F3F1D4B8A00000006 /* SafariWebExtensionHandler.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = SafariWebExtensionHandler.m; sourceTree = "<group>"; };
 		7A0C1A3F3F1D4B8A00000007 /* SafariWebExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SafariWebExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A7546B435276780BEDDA6E71 /* Pods-M3U8.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-M3U8.release.xcconfig"; path = "Target Support Files/Pods-M3U8/Pods-M3U8.release.xcconfig"; sourceTree = "<group>"; };
-		C7AB4F12942D0D0B41BDB9F5 /* Pods-M3U8-M3U8UITests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-M3U8-M3U8UITests.debug.xcconfig"; path = "Target Support Files/Pods-M3U8-M3U8UITests/Pods-M3U8-M3U8UITests.debug.xcconfig"; sourceTree = "<group>"; };
-		CCB6AD92A566A8C40CD62FF4 /* Pods-M3U8-M3U8UITests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-M3U8-M3U8UITests.release.xcconfig"; path = "Target Support Files/Pods-M3U8-M3U8UITests/Pods-M3U8-M3U8UITests.release.xcconfig"; sourceTree = "<group>"; };
-		D6B8843F2BB8239F23D0A2AC /* Pods_M3U8Tests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_M3U8Tests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		E949803B6150836DEBB9FD02 /* Pods_M3U8.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_M3U8.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -127,18 +119,8 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		34E18D2C2F6141110005CFA3 /* Exceptions for "M3U8" folder in "Embed Frameworks" phase from "M3U8" target */ = {
+		34E18D2C2F6141110005CFA3 /* Exceptions for "M3U8" folder in "Embed Frameworks" build phase */ = {
 			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			attributesByRelativePath = {
-				"ffmpeg-kit-ios-min-gpl/ffmpegkit.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				"ffmpeg-kit-ios-min-gpl/libavcodec.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				"ffmpeg-kit-ios-min-gpl/libavdevice.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				"ffmpeg-kit-ios-min-gpl/libavfilter.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				"ffmpeg-kit-ios-min-gpl/libavformat.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				"ffmpeg-kit-ios-min-gpl/libavutil.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				"ffmpeg-kit-ios-min-gpl/libswresample.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-				"ffmpeg-kit-ios-min-gpl/libswscale.xcframework" = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-			};
 			buildPhase = 34E188942F56B59C0005CFA3 /* Embed Frameworks */;
 			membershipExceptions = (
 				"ffmpeg-kit-ios-min-gpl/ffmpegkit.xcframework",
@@ -158,7 +140,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				34E187672F568B5C0005CFA3 /* Exceptions for "M3U8" folder in "M3U8" target */,
-				34E18D2C2F6141110005CFA3 /* Exceptions for "M3U8" folder in "Embed Frameworks" phase from "M3U8" target */,
+				34E18D2C2F6141110005CFA3 /* Exceptions for "M3U8" folder in "Embed Frameworks" build phase */,
 				34E18CCB2F6140AA0005CFA3 /* Exceptions for "M3U8" folder in "M3U8UITests" target */,
 				34E18CCC2F6140AA0005CFA3 /* Exceptions for "M3U8" folder in "SafariWebExtension" target */,
 			);
@@ -167,11 +149,15 @@
 		};
 		34E187582F568B5C0005CFA3 /* M3U8Tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = M3U8Tests;
 			sourceTree = "<group>";
 		};
 		34E187622F568B5C0005CFA3 /* M3U8UITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = M3U8UITests;
 			sourceTree = "<group>";
 		};
@@ -190,7 +176,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D54BEF021BEC0C6FB7122A1C /* Pods_M3U8Tests.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -198,7 +183,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4CC9A01070BF08B9E7492AD2 /* Pods_M3U8_M3U8UITests.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -241,10 +225,6 @@
 			children = (
 				1A3A260A14FA6DB1A79DFE69 /* Pods-M3U8.debug.xcconfig */,
 				A7546B435276780BEDDA6E71 /* Pods-M3U8.release.xcconfig */,
-				C7AB4F12942D0D0B41BDB9F5 /* Pods-M3U8-M3U8UITests.debug.xcconfig */,
-				CCB6AD92A566A8C40CD62FF4 /* Pods-M3U8-M3U8UITests.release.xcconfig */,
-				0DA981F304CD5C6D10BA6446 /* Pods-M3U8Tests.debug.xcconfig */,
-				313B82D4DDC399DF0BA772FF /* Pods-M3U8Tests.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -265,8 +245,6 @@
 			isa = PBXGroup;
 			children = (
 				E949803B6150836DEBB9FD02 /* Pods_M3U8.framework */,
-				26693F6C9E92FA878276C7D8 /* Pods_M3U8_M3U8UITests.framework */,
-				D6B8843F2BB8239F23D0A2AC /* Pods_M3U8Tests.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -284,6 +262,7 @@
 				34E187352F568B5B0005CFA3 /* Resources */,
 				34E188942F56B59C0005CFA3 /* Embed Frameworks */,
 				7A0C1A3F3F1D4B8A00000014 /* Embed App Extensions */,
+				E72BA36220246FE83FEDDA4B /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -302,7 +281,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 34E1876D2F568B5C0005CFA3 /* Build configuration list for PBXNativeTarget "M3U8Tests" */;
 			buildPhases = (
-				27C0A3EBC7F022D4C0F7CB1D /* [CP] Check Pods Manifest.lock */,
 				34E187512F568B5C0005CFA3 /* Sources */,
 				34E187522F568B5C0005CFA3 /* Frameworks */,
 				34E187532F568B5C0005CFA3 /* Resources */,
@@ -324,7 +302,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 34E187702F568B5C0005CFA3 /* Build configuration list for PBXNativeTarget "M3U8UITests" */;
 			buildPhases = (
-				572970DEDBFD8E5A979946D8 /* [CP] Check Pods Manifest.lock */,
 				34E1875B2F568B5C0005CFA3 /* Sources */,
 				34E1875C2F568B5C0005CFA3 /* Frameworks */,
 				34E1875D2F568B5C0005CFA3 /* Resources */,
@@ -441,28 +418,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		27C0A3EBC7F022D4C0F7CB1D /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-M3U8Tests-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
 		4242C87C246B28BEB49E94CB /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -485,26 +440,21 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		572970DEDBFD8E5A979946D8 /* [CP] Check Pods Manifest.lock */ = {
+		E72BA36220246FE83FEDDA4B /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-M3U8/Pods-M3U8-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
+			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-M3U8-M3U8UITests-checkManifestLockResult.txt",
+				"${PODS_ROOT}/Target Support Files/Pods-M3U8/Pods-M3U8-frameworks-${CONFIGURATION}-output-files.xcfilelist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-M3U8/Pods-M3U8-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -653,7 +603,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -714,7 +664,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -734,7 +684,6 @@
 		};
 		34E1876E2F568B5C0005CFA3 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0DA981F304CD5C6D10BA6446 /* Pods-M3U8Tests.debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -753,7 +702,6 @@
 		};
 		34E1876F2F568B5C0005CFA3 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 313B82D4DDC399DF0BA772FF /* Pods-M3U8Tests.release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -772,7 +720,6 @@
 		};
 		34E187712F568B5C0005CFA3 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = C7AB4F12942D0D0B41BDB9F5 /* Pods-M3U8-M3U8UITests.debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -789,7 +736,6 @@
 		};
 		34E187722F568B5C0005CFA3 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = CCB6AD92A566A8C40CD62FF4 /* Pods-M3U8-M3U8UITests.release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
