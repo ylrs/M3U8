@@ -6,6 +6,7 @@
 #import "M3U8FileManagerService.h"
 
 static NSString * const kAppGroupID = @"group.com.m3u8converter.shared";
+static NSString * const kCacheRootPath = @"Cache";
 static NSString * const kSourceCachePath = @"Cache/Sources";
 static NSString * const kConvertedPath = @"Converted";
 
@@ -110,6 +111,31 @@ static NSString * const kConvertedPath = @"Converted";
         }
     }
     return success;
+}
+
+- (BOOL)clearCacheDirectoryWithError:(NSError *__autoreleasing  _Nullable *)error {
+    NSURL *documentsURL = [self documentsDirectory];
+    NSURL *cacheRoot = [documentsURL URLByAppendingPathComponent:kCacheRootPath];
+    if (![self.fileManager fileExistsAtPath:cacheRoot.path]) {
+        return YES;
+    }
+    if (![self.fileManager removeItemAtURL:cacheRoot error:error]) {
+        return NO;
+    }
+    [self createDirectoryIfNeededAtURL:cacheRoot];
+    return YES;
+}
+
+- (BOOL)clearConvertedDirectoryWithError:(NSError *__autoreleasing  _Nullable *)error {
+    NSURL *convertedDir = [self convertedDirectory];
+    if (![self.fileManager fileExistsAtPath:convertedDir.path]) {
+        return YES;
+    }
+    if (![self.fileManager removeItemAtURL:convertedDir error:error]) {
+        return NO;
+    }
+    [self createDirectoryIfNeededAtURL:convertedDir];
+    return YES;
 }
 
 - (long long)fileSizeAtURL:(NSURL *)fileURL {

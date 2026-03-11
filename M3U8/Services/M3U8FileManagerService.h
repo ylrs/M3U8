@@ -44,6 +44,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)clearSourceCacheWithError:(NSError **)error;
 
 /**
+ * 清空缓存根目录（删除整个 Cache 文件夹）
+ */
+- (BOOL)clearCacheDirectoryWithError:(NSError **)error;
+
+/**
+ * 清空转换输出目录（删除整个 Converted 文件夹）
+ */
+- (BOOL)clearConvertedDirectoryWithError:(NSError **)error;
+
+/**
  * 获取文件大小
  */
 - (long long)fileSizeAtURL:(NSURL *)fileURL;

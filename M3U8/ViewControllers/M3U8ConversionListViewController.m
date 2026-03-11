@@ -102,6 +102,8 @@
     [confirm addAction:[UIAlertAction actionWithTitle:@"确认删除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
         NSError *cacheError = nil;
         [[M3U8FileManagerService sharedService] clearSourceCacheWithError:&cacheError];
+        NSError *convertedError = nil;
+        [[M3U8FileManagerService sharedService] clearConvertedDirectoryWithError:&convertedError];
 
         NSMutableArray *completedTasks = [NSMutableArray array];
         for (M3U8ConversionTask *task in self.tasks) {
@@ -114,9 +116,9 @@
         [self.tableView reloadData];
         [self saveTasksToDisk];
 
-        if (cacheError) {
+        if (cacheError || convertedError) {
             UIAlertController *errorAlert = [UIAlertController alertControllerWithTitle:@"清理失败"
-                                                                                message:cacheError.localizedDescription ?: @"无法清理缓存"
+                                                                                message:cacheError.localizedDescription ?: convertedError.localizedDescription ?: @"无法清理缓存"
                                                                          preferredStyle:UIAlertControllerStyleAlert];
             [errorAlert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
             [self presentViewController:errorAlert animated:YES completion:nil];
@@ -315,6 +317,16 @@
     }
 
     [alert addAction:[UIAlertAction actionWithTitle:@"删除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        M3U8FileManagerService *fileManager = [M3U8FileManagerService sharedService];
+        if (task.outputURL) {
+            [fileManager deleteFileAtURL:task.outputURL error:nil];
+        }
+        if (task.localPackageURL) {
+            [fileManager deleteFileAtURL:task.localPackageURL error:nil];
+        }
+        if (task.localSourceURL) {
+            [fileManager deleteFileAtURL:task.localSourceURL error:nil];
+        }
         [self.tasks removeObject:task];
         [tableView deleteRowsAtIndexPaths:@[indexPath] withRowAnimation:UITableViewRowAnimationFade];
         [self saveTasksToDisk];
