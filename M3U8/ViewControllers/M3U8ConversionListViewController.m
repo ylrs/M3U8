@@ -165,6 +165,27 @@
             [errorAlert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
             [self presentViewController:errorAlert animated:YES completion:nil];
         }
+
+        [self.conversionService removeAllSystemDownloadsWithCompletion:^(NSError * _Nullable error) {
+            if (error) {
+                UIAlertController *fallback = [UIAlertController alertControllerWithTitle:@"系统未返回可删除项目"
+                                                                                   message:@"是否使用文件系统方式强制清理系统下载缓存？"
+                                                                            preferredStyle:UIAlertControllerStyleAlert];
+                [fallback addAction:[UIAlertAction actionWithTitle:@"取消" style:UIAlertActionStyleCancel handler:nil]];
+                [fallback addAction:[UIAlertAction actionWithTitle:@"强制清理" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+                    NSError *userManagedError = nil;
+                    [[M3U8FileManagerService sharedService] clearUserManagedAssetsWithError:&userManagedError];
+                    if (userManagedError) {
+                        UIAlertController *errorAlert = [UIAlertController alertControllerWithTitle:@"清理失败"
+                                                                                            message:userManagedError.localizedDescription ?: @"无法清理系统下载缓存"
+                                                                                     preferredStyle:UIAlertControllerStyleAlert];
+                        [errorAlert addAction:[UIAlertAction actionWithTitle:@"确定" style:UIAlertActionStyleDefault handler:nil]];
+                        [self presentViewController:errorAlert animated:YES completion:nil];
+                    }
+                }]];
+                [self presentViewController:fallback animated:YES completion:nil];
+            }
+        }];
     }]];
     [self presentViewController:confirm animated:YES completion:nil];
 }
@@ -437,6 +458,7 @@
     }
 
     [alert addAction:[UIAlertAction actionWithTitle:@"删除" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        [self.conversionService removeSystemDownloadsForTask:task completion:nil];
         M3U8FileManagerService *fileManager = [M3U8FileManagerService sharedService];
         if (task.outputURL) {
             [fileManager deleteFileAtURL:task.outputURL error:nil];

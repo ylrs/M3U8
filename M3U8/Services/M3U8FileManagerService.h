@@ -54,6 +54,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)clearConvertedDirectoryWithError:(NSError **)error;
 
 /**
+ * 清理系统下载包目录（Library/com.apple.UserManagedAssets.*）
+ */
+- (BOOL)clearUserManagedAssetsWithError:(NSError **)error;
+
+/**
  * 获取文件大小
  */
 - (long long)fileSizeAtURL:(NSURL *)fileURL;

@@ -69,6 +69,17 @@ typedef void(^M3U8ConversionCompletionBlock)(NSString *taskId, BOOL success, NSE
  */
 - (NSInteger)activeTasksCount;
 
+/**
+ * 删除指定任务对应的系统下载缓存（AVAssetDownloadStorageManager）
+ */
+- (void)removeSystemDownloadsForTask:(M3U8ConversionTask *)task
+                          completion:(void (^)(NSError * _Nullable error))completion;
+
+/**
+ * 删除全部系统下载缓存（AVAssetDownloadStorageManager）
+ */
+- (void)removeAllSystemDownloadsWithCompletion:(void (^)(NSError * _Nullable error))completion;
+
 @end
 
 NS_ASSUME_NONNULL_END

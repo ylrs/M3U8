@@ -180,4 +180,28 @@ static NSString * const kConvertedPath = @"Converted";
     }
 }
 
+- (BOOL)clearUserManagedAssetsWithError:(NSError *__autoreleasing  _Nullable *)error {
+    NSURL *libraryURL = [[self.fileManager URLsForDirectory:NSLibraryDirectory
+                                                  inDomains:NSUserDomainMask] firstObject];
+    if (!libraryURL) {
+        return YES;
+    }
+    NSArray<NSURL *> *items = [self.fileManager contentsOfDirectoryAtURL:libraryURL
+                                              includingPropertiesForKeys:nil
+                                                                 options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                   error:error];
+    if (!items) {
+        return NO;
+    }
+    BOOL success = YES;
+    for (NSURL *item in items) {
+        if ([item.lastPathComponent hasPrefix:@"com.apple.UserManagedAssets."]) {
+            if (![self.fileManager removeItemAtURL:item error:error]) {
+                success = NO;
+            }
+        }
+    }
+    return success;
+}
+
 @end

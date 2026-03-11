@@ -25,6 +25,29 @@
 
 @implementation M3U8ConversionService
 
+static void M3U8InvokeRemoveDownloads(id manager, NSArray *items, void (^completion)(NSError * _Nullable error)) {
+    SEL sel = NSSelectorFromString(@"removeDownloadStorageItems:completionHandler:");
+    if (![manager respondsToSelector:sel]) {
+        if (completion) completion(nil);
+        return;
+    }
+    NSMethodSignature *sig = [manager methodSignatureForSelector:sel];
+    if (!sig) {
+        if (completion) completion(nil);
+        return;
+    }
+    NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+    inv.target = manager;
+    inv.selector = sel;
+    NSArray *argItems = items ?: @[];
+    void (^block)(NSError * _Nullable) = ^(NSError * _Nullable error) {
+        if (completion) completion(error);
+    };
+    [inv setArgument:&argItems atIndex:2];
+    [inv setArgument:&block atIndex:3];
+    [inv invoke];
+}
+
 #pragma mark - Singleton
 
 + (instancetype)sharedService {
@@ -131,6 +154,92 @@
 
 - (NSInteger)activeTasksCount {
     return self.exportSessions.count;
+}
+
+#pragma mark - System Download Storage
+
+- (void)removeSystemDownloadsForTask:(M3U8ConversionTask *)task
+                          completion:(void (^)(NSError * _Nullable error))completion {
+    if (@available(iOS 10.0, *)) {
+        // AVAssetDownloadStorageManager available
+    } else {
+        if (completion) completion(nil);
+        return;
+    }
+    if (!task) {
+        if (completion) completion(nil);
+        return;
+    }
+    Class managerClass = NSClassFromString(@"AVAssetDownloadStorageManager");
+    if (!managerClass) {
+        NSLog(@"[系统缓存] AVAssetDownloadStorageManager 不可用");
+        if (completion) completion(nil);
+        return;
+    }
+    id manager = [managerClass performSelector:NSSelectorFromString(@"sharedDownloadStorageManager")];
+    NSArray *items = nil;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    if ([manager respondsToSelector:NSSelectorFromString(@"allDownloadStorageItems")]) {
+        items = [manager performSelector:NSSelectorFromString(@"allDownloadStorageItems")];
+    }
+#pragma clang diagnostic pop
+    NSLog(@"[系统缓存] allDownloadStorageItems: %lu", (unsigned long)items.count);
+    NSMutableArray *targets = [NSMutableArray array];
+    for (id item in items) {
+        AVURLAsset *asset = nil;
+        if ([item respondsToSelector:@selector(URLAsset)]) {
+            asset = [item valueForKey:@"URLAsset"];
+        }
+        if (!asset) {
+            continue;
+        }
+        if ([asset.URL.absoluteString isEqualToString:task.sourceURL.absoluteString]) {
+            [targets addObject:item];
+        }
+    }
+    NSLog(@"[系统缓存] 匹配到 %lu 个条目", (unsigned long)targets.count);
+    if (targets.count == 0) {
+        if (completion) completion(nil);
+        return;
+    }
+    M3U8InvokeRemoveDownloads(manager, targets, completion);
+}
+
+- (void)removeAllSystemDownloadsWithCompletion:(void (^)(NSError * _Nullable error))completion {
+    if (@available(iOS 10.0, *)) {
+        // AVAssetDownloadStorageManager available
+    } else {
+        if (completion) completion(nil);
+        return;
+    }
+    Class managerClass = NSClassFromString(@"AVAssetDownloadStorageManager");
+    if (!managerClass) {
+        NSLog(@"[系统缓存] AVAssetDownloadStorageManager 不可用");
+        if (completion) completion(nil);
+        return;
+    }
+    id manager = [managerClass performSelector:NSSelectorFromString(@"sharedDownloadStorageManager")];
+    NSArray *items = nil;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Warc-performSelector-leaks"
+    if ([manager respondsToSelector:NSSelectorFromString(@"allDownloadStorageItems")]) {
+        items = [manager performSelector:NSSelectorFromString(@"allDownloadStorageItems")];
+    }
+#pragma clang diagnostic pop
+    NSLog(@"[系统缓存] allDownloadStorageItems: %lu", (unsigned long)items.count);
+    if (items.count == 0) {
+        if (completion) {
+            completion([NSError errorWithDomain:@"M3U8ConverterError"
+                                           code:-1099
+                                       userInfo:@{
+                NSLocalizedDescriptionKey: @"系统下载列表为空",
+                NSLocalizedFailureReasonErrorKey: @"系统未返回可删除的下载项。"
+            }]);
+        }
+        return;
+    }
+    M3U8InvokeRemoveDownloads(manager, items, completion);
 }
 
 #pragma mark - Private Methods - Main Conversion Logic
@@ -709,6 +818,9 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     NSError *copyError = nil;
     if ([fm copyItemAtURL:location toURL:destinationURL error:&copyError]) {
         task.localPackageURL = destinationURL;
+        if (location && location.isFileURL && ![location isEqual:destinationURL]) {
+            [fm removeItemAtURL:location error:nil];
+        }
     } else {
         NSLog(@"[转换服务] 下载包复制失败: %@", copyError);
         task.localPackageURL = location;
