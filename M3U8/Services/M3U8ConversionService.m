@@ -18,6 +18,7 @@
 @property (nonatomic, strong) NSMutableDictionary<NSString *, M3U8ConversionProgressBlock> *downloadProgressBlocks;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, M3U8ConversionCompletionBlock> *downloadCompletionBlocks;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, M3U8ConversionTask *> *downloadTaskModels;
+@property (nonatomic, strong) NSMutableDictionary<NSString *, NSNumber *> *downloadProgressSnapshot;
 @property (nonatomic, strong) NSSet<NSString *> *insecureTLSHosts;
 
 @end
@@ -48,6 +49,7 @@
         _downloadProgressBlocks = [NSMutableDictionary dictionary];
         _downloadCompletionBlocks = [NSMutableDictionary dictionary];
         _downloadTaskModels = [NSMutableDictionary dictionary];
+        _downloadProgressSnapshot = [NSMutableDictionary dictionary];
         _insecureTLSHosts = [NSSet setWithArray:@[@"sf1-cdn-tos.huoshanstatic.com"]];
         NSString *sessionId = @"com.m3u8converter.hlsdownload";
         NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:sessionId];
@@ -422,6 +424,13 @@
         return;
     }
 
+    AVAssetDownloadTask *existing = self.downloadTasks[task.taskId];
+    if (existing) {
+        NSLog(@"[转换服务] 已存在下载任务，继续下载");
+        [existing resume];
+        return;
+    }
+
     NSLog(@"[转换服务] 开始使用AVFoundation下载HLS");
     AVURLAsset *asset = [AVURLAsset URLAssetWithURL:task.sourceURL options:@{
         AVURLAssetPreferPreciseDurationAndTimingKey: @YES
@@ -448,6 +457,9 @@
     self.downloadProgressBlocks[task.taskId] = [progressBlock copy];
     self.downloadCompletionBlocks[task.taskId] = [completionBlock copy];
     self.downloadTaskModels[task.taskId] = task;
+    if (!self.downloadProgressSnapshot[task.taskId]) {
+        self.downloadProgressSnapshot[task.taskId] = @(task.downloadProgress);
+    }
 
     [downloadTask resume];
 }
@@ -506,7 +518,11 @@ timeRangeExpectedToLoad:(CMTimeRange)timeRangeExpectedToLoad {
     M3U8ConversionTask *task = self.downloadTaskModels[taskId];
     if (task) {
         task.status = M3U8ConversionStatusPreparing;
-        task.downloadProgress = progress;
+        NSNumber *last = self.downloadProgressSnapshot[taskId];
+        CGFloat stable = last ? MAX(last.doubleValue, progress) : progress;
+        self.downloadProgressSnapshot[taskId] = @(stable);
+        task.downloadProgress = stable;
+        progress = stable;
     }
 
     M3U8ConversionProgressBlock progressBlock = self.downloadProgressBlocks[taskId];
@@ -534,6 +550,7 @@ didFinishDownloadingToURL:(NSURL *)location {
     [self.downloadProgressBlocks removeObjectForKey:taskId];
     [self.downloadCompletionBlocks removeObjectForKey:taskId];
     [self.downloadTaskModels removeObjectForKey:taskId];
+    [self.downloadProgressSnapshot removeObjectForKey:taskId];
 
     if (!task) {
         if (completionBlock) {
@@ -546,10 +563,6 @@ didFinishDownloadingToURL:(NSURL *)location {
         }
         return;
     }
-
-    task.status = M3U8ConversionStatusConverting;
-    task.downloadProgress = 1.0;
-    task.convertProgress = 0.0;
 
     [self copyDownloadPackageIfNeededFromURL:location forTask:task];
     NSURL *packageURL = task.localPackageURL ?: location;
@@ -570,6 +583,13 @@ didFinishDownloadingToURL:(NSURL *)location {
             }
 
             task.localSourceURL = playlistURL;
+            task.downloadProgress = 1.0;
+            task.convertProgress = 0.0;
+            if (task.status == M3U8ConversionStatusPaused) {
+                NSLog(@"[转换服务] 下载完成，已暂停，等待手动继续");
+                return;
+            }
+            task.status = M3U8ConversionStatusConverting;
             NSLog(@"[转换服务] 下载完成，使用FFmpeg进行本地转码");
             [self convertWithFFmpeg:task progress:progressBlock completion:completionBlock];
         });
@@ -592,6 +612,7 @@ didCompleteWithError:(NSError *)error {
     [self.downloadProgressBlocks removeObjectForKey:taskId];
     [self.downloadCompletionBlocks removeObjectForKey:taskId];
     [self.downloadTaskModels removeObjectForKey:taskId];
+    [self.downloadProgressSnapshot removeObjectForKey:taskId];
 
     if (completionBlock) {
         completionBlock(taskId, NO, error);

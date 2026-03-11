@@ -119,11 +119,10 @@
 - (void)handleAppDidEnterBackground {
     BOOL updated = NO;
     for (M3U8ConversionTask *task in self.tasks) {
-        if (task.status == M3U8ConversionStatusPreparing ||
-            task.status == M3U8ConversionStatusConverting) {
+        if (task.status == M3U8ConversionStatusConverting) {
             [self pauseTask:task
-                     reason:@"已进入后台，任务已暂停，回到前台将自动重试。"
-                 autoResume:YES];
+                     reason:@"已进入后台，转码已暂停。"
+                 autoResume:NO];
             updated = YES;
         }
     }
@@ -181,14 +180,15 @@
     __weak typeof(self) weakSelf = self;
     [self.conversionService startConversionForTask:task
                                           progress:^(NSString *taskId, CGFloat progress) {
-        // 更新进度
-        NSLog(@"[转换列表] 任务 %@ 进度: %.2f%%", taskId, progress * 100);
+        // 更新进度（分阶段，保持单调）
         for (M3U8ConversionTask *t in weakSelf.tasks) {
             if ([t.taskId isEqualToString:taskId]) {
                 if (t.status == M3U8ConversionStatusPreparing) {
-                    t.downloadProgress = progress;
+                    t.downloadProgress = MAX(t.downloadProgress, progress);
+                    NSLog(@"[转换列表] 任务 %@ 下载进度: %.2f%%", taskId, t.downloadProgress * 100);
                 } else {
-                    t.convertProgress = progress;
+                    t.convertProgress = MAX(t.convertProgress, progress);
+                    NSLog(@"[转换列表] 任务 %@ 转换进度: %.2f%%", taskId, t.convertProgress * 100);
                 }
                 [weakSelf updateTaskInTable:t];
                 break;

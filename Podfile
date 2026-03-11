@@ -8,7 +8,7 @@ use_frameworks!
 
 target 'M3U8' do
 
-  pod 'ffmpeg-kit-ios-full', '6.0.LTS'
+  #pod 'ffmpeg-kit-ios-full', '6.0.LTS'
 
   target 'M3U8Tests' do
     inherit! :search_paths
